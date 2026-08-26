@@ -9,6 +9,7 @@ parqueadero antes de que te atrapen.
 Controles:
     WASD / flechas   moverse
     ESPACIO          interactuar con la sala más cercana
+    I / TAB          abrir el inventario
     Z                deshacer el último movimiento (pila de historial)
     ENTER            confirmar en menú / pantallas finales
     ESC              salir
@@ -30,6 +31,7 @@ from buscador import buscar_por_nombre
 from mapa import crear_mapa_universidad
 from misiones import crear_mision_principal
 from estado_mundo import crear_estado_inicial, avanzar_tiempo, formatear_hora
+from ui_inventario import BotonInventario, PanelInventario, crear_objeto
 
 # --------------------------------------------------------------------------
 # Configuración general
@@ -248,7 +250,7 @@ class Partida:
         if sala is None:
             return
         if sala == "entrada" and not self.mision_libro.completada and not self.inventario.tiene("libro"):
-            if self.inventario.agregar({"nombre": "libro", "icono": "L"}):
+            if self.inventario.agregar(crear_objeto("libro")):
                 self._agregar_toast("Recogiste el libro que debes devolver a la biblioteca.")
         elif sala == "biblioteca" and self.inventario.tiene("libro"):
             self.inventario.quitar("libro")
@@ -385,7 +387,7 @@ def dibujar_hud(pantalla, partida, fuentes):
 
     completadas = sum(1 for h in partida.mision.hijas if h.completada)
     mision_txt = fuente_normal.render(f"Misiones: {completadas}/{len(partida.mision.hijas)}", True, COLOR_TEXTO)
-    pantalla.blit(mision_txt, (ANCHO - mision_txt.get_width() - 18, 18))
+    pantalla.blit(mision_txt, (ANCHO - mision_txt.get_width() - 196, 18))
 
     y = 66
     for toast in partida.toasts:
@@ -398,12 +400,13 @@ def dibujar_hud(pantalla, partida, fuentes):
     pygame.draw.rect(pantalla, (16, 20, 42), (0, ALTO - 34, ANCHO, 34))
     x = 12
     for objeto in partida.inventario.objetos:
-        pygame.draw.rect(pantalla, COLOR_ACENTO, (x, ALTO - 28, 22, 22), border_radius=4)
+        pygame.draw.rect(pantalla, (12, 10, 24), (x - 2, ALTO - 30, 26, 26))
+        pygame.draw.rect(pantalla, COLOR_ACENTO, (x, ALTO - 28, 22, 22))
         letra = fuente_chica.render(objeto["icono"], True, (30, 20, 5))
         pantalla.blit(letra, (x + 7, ALTO - 26))
         x += 28
 
-    ayuda = fuente_chica.render("WASD: moverte  |  ESPACIO: interactuar  |  Z: deshacer  |  F: buscar libro", True, (150, 156, 190))
+    ayuda = fuente_chica.render("WASD: moverte  |  ESPACIO: interactuar  |  I: inventario  |  Z: deshacer  |  F: buscar", True, (150, 156, 190))
     pantalla.blit(ayuda, (ANCHO - ayuda.get_width() - 12, ALTO - 26))
 
 
@@ -474,6 +477,9 @@ def main():
 
     puntajes = ordenar_puntajes(cargar_puntajes())
 
+    boton_inventario = BotonInventario((ANCHO - 178, 8, 160, 40))
+    panel_inventario = PanelInventario(ANCHO, ALTO)
+
     estado_juego = MENU
     partida = None
 
@@ -484,11 +490,27 @@ def main():
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 ejecutando = False
-            elif evento.type == pygame.KEYDOWN:
+                continue
+
+            # Con una partida en curso, el inventario ve los eventos antes que
+            # el juego: si los consume (abrir, cerrar, mover la seleccion) el
+            # resto del bucle los ignora.
+            if estado_juego == JUGANDO:
+                if (evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1
+                        and boton_inventario.contiene(evento.pos)):
+                    panel_inventario.alternar()
+                    continue
+                if panel_inventario.manejar_evento(evento):
+                    continue
+
+            if evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_ESCAPE:
                     ejecutando = False
                 elif estado_juego == MENU and evento.key == pygame.K_RETURN:
                     partida = Partida(mapa, fuentes)
+                    panel_inventario = PanelInventario(
+                        ANCHO, ALTO, partida.inventario.capacidad_maxima
+                    )
                     estado_juego = JUGANDO
                 elif estado_juego == JUGANDO and evento.key == pygame.K_SPACE:
                     partida.interactuar()
@@ -500,10 +522,14 @@ def main():
                     estado_juego = MENU
 
         if estado_juego == JUGANDO:
-            teclas = pygame.key.get_pressed()
-            partida.actualizar(dt, teclas)
+            pos_mouse = pygame.mouse.get_pos()
+            boton_inventario.actualizar(pos_mouse)
+            panel_inventario.actualizar(dt, pos_mouse)
+            if not panel_inventario.abierto:   # revisar la bolsa pausa la noche
+                partida.actualizar(dt, pygame.key.get_pressed())
             if partida.terminado:
                 puntajes = guardar_puntaje(partida.calcular_puntaje(), puntajes)
+                panel_inventario.cerrar()
                 estado_juego = FIN
 
         if estado_juego == MENU:
@@ -515,6 +541,15 @@ def main():
             dibujar_jugador(pantalla, partida.jugador, glow_linterna)
             dibujar_etiquetas(pantalla, mapa, fuentes["chica"])
             dibujar_hud(pantalla, partida, fuentes)
+            panel_inventario.dibujar(pantalla, partida.inventario)
+            # El boton va encima del panel para que siga legible y clickeable
+            # cuando el inventario esta abierto.
+            boton_inventario.dibujar(
+                pantalla,
+                len(partida.inventario.objetos),
+                partida.inventario.capacidad_maxima,
+                panel_inventario.abierto,
+            )
         elif estado_juego == FIN:
             dibujar_fin(pantalla, fuentes, partida)
 

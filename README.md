@@ -23,10 +23,12 @@ python main.py
 |---|---|
 | `W A S D` / flechas | Moverse |
 | `ESPACIO` | Interactuar con la sala más cercana |
+| `I` / `TAB` / clic en **BOLSA** | Abrir y cerrar el inventario (pausa la partida) |
+| Flechas / clic | Moverte entre las ranuras del inventario |
 | `Z` | Deshacer el último movimiento |
 | `F` | Buscar el libro en tu inventario |
 | `ENTER` | Confirmar en el menú / pantalla final |
-| `ESC` | Salir |
+| `ESC` | Cerrar el inventario si está abierto; si no, salir |
 
 ## Estructura del proyecto
 
@@ -37,6 +39,7 @@ funcionando dentro del juego (no son solo plantillas vacías):
 |---|---|---|
 | `main.py` | — | Arma el juego: ventana, bucle principal, estados (menú/jugando/fin), dibujo |
 | `inventario.py` | Semana 3 — lista | Objetos que el jugador recoge (ej. el libro) |
+| `ui_inventario.py` | — | Botón y panel del inventario en estilo 8/16 bits (sprites, rarezas, rejilla de ranuras) |
 | `historial.py` | Semana 5 — pila | Deshacer el último movimiento (`Z`) |
 | `eventos.py` | Semana 6 — cola | Avisos programados (10 min, 5 min, toque de queda) |
 | `mazmorra.py` | Semana 7 — recursión | Genera los pisos/aulas de la Torre de Laboratorios |
@@ -53,7 +56,9 @@ generado).
 ## Próximos pasos sugeridos
 
 - Reemplazar los círculos/glows por sprites (personaje, vigilante, salas) y
-  un tilemap real en `assets/`.
+  un tilemap real en `assets/`, reusando `ui_inventario.dibujar_arte`.
+- Más objetos en `ui_inventario.CATALOGO` (cada uno con su sprite 8x8 y su
+  rareza) para llenar las 6 ranuras.
 - Más de un vigilante, o vigilantes con distinto radio de detección por sala.
 - Sub-misiones con más pasos (por ejemplo, que "imprimir el trabajo" primero
   requiera recoger una USB en el salón 101).

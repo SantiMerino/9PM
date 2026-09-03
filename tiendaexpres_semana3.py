@@ -255,9 +255,14 @@ def graficar():
 
     # Grafico 3: diagrama de caja con los limites IQR
     fig, ax = plt.subplots(figsize=(7.2, 2.4))
-    bp = ax.boxplot(tiempos_entrega, vert=False, widths=0.5, patch_artist=True,
+    # matplotlib >= 3.11 sustituye vert=False por orientation="horizontal"
+    orientacion = ({"orientation": "horizontal"}
+                   if tuple(int(v) for v in matplotlib.__version__.split(".")[:2]) >= (3, 11)
+                   else {"vert": False})
+    bp = ax.boxplot(tiempos_entrega, widths=0.5, patch_artist=True,
                     flierprops=dict(marker="o", markerfacecolor=RIESGO,
-                                    markeredgecolor=RIESGO, markersize=7))
+                                    markeredgecolor=RIESGO, markersize=7),
+                    **orientacion)
     bp["boxes"][0].set_facecolor(TINTA)
     bp["medians"][0].set_color(ACENTO)
     bp["medians"][0].set_linewidth(2)

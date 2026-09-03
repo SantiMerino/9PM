@@ -213,7 +213,10 @@ def graficar():
         print("\n[matplotlib no instalado: se omiten los graficos]")
         return
 
-    TINTA, ACENTO, RIESGO, GRIS = "#1B2A4A", "#C8952B", "#A83A2E", "#8A8F9A"
+    # Paleta institucional Key
+    AZUL, MORADO, NEGRO = "#006FFF", "#9746FF", "#000000"
+    VERDE, AMARILLO, GRIS = "#00E379", "#F3F300", "#7E7D8A"
+    TINTA, ACENTO, RIESGO = AZUL, MORADO, NEGRO
 
     # Grafico 1: frecuencia observada vs modelo binomial
     fig, ax = plt.subplots(figsize=(7.2, 3.6))
@@ -242,7 +245,7 @@ def graficar():
     xs = [x / 2 for x in range(10, 140)]
     ax.plot(xs, [nd.pdf(x) for x in xs], color=ACENTO, linewidth=2,
             label=f"Normal({L['media']:.1f}, {L['sd_pob']:.1f})")
-    ax.axvline(38, color=RIESGO, linewidth=1.6, label="Garantia propuesta: 38 min")
+    ax.axvline(38, color=VERDE, linewidth=2.6, label="Garantia propuesta: 38 min")
     for a in atipicos:
         ax.plot(a, 0.002, marker="v", color=RIESGO, markersize=8)
     ax.set_xlabel("Minutos desde la confirmacion del pedido")
@@ -260,11 +263,11 @@ def graficar():
                    if tuple(int(v) for v in matplotlib.__version__.split(".")[:2]) >= (3, 11)
                    else {"vert": False})
     bp = ax.boxplot(tiempos_entrega, widths=0.5, patch_artist=True,
-                    flierprops=dict(marker="o", markerfacecolor=RIESGO,
-                                    markeredgecolor=RIESGO, markersize=7),
+                    flierprops=dict(marker="o", markerfacecolor=MORADO,
+                                    markeredgecolor=MORADO, markersize=7),
                     **orientacion)
     bp["boxes"][0].set_facecolor(TINTA)
-    bp["medians"][0].set_color(ACENTO)
+    bp["medians"][0].set_color(AMARILLO)
     bp["medians"][0].set_linewidth(2)
     ax.axvline(lim_inf, color=GRIS, linestyle=":", linewidth=1)
     ax.axvline(lim_sup, color=GRIS, linestyle=":", linewidth=1)

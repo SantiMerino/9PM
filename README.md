@@ -1,5 +1,8 @@
 # 9PM
 
+> **Checkpoint 1:** concepto del juego, diagrama de flujo + pseudocódigo y
+> evidencia del inventario en [`docs/CHECKPOINT1.md`](docs/CHECKPOINT1.md).
+
 Eres un estudiante que se quedó tarde en la universidad. Son las **20:15** y
 a las **21:00** empieza el toque de queda: si un vigilante te ve después de
 esa hora, te expulsan del campus por esa noche. Resuelve tus tres pendientes

@@ -1,9 +1,12 @@
 """Checkpoint 1: evidencia de ejecucion del inventario (agregar, usar y soltar).
 
 Corre este script de forma independiente (sin abrir la ventana del juego) para
-demostrar que `Inventario` (inventario.py) funciona con listas: agregar
-objetos, consultarlos, "usarlos" (comprobar que se tienen) y soltarlos,
-respetando la capacidad maxima de la mochila.
+demostrar que `Inventario` (inventario.py) funciona con una LISTA de Python:
+agregar objetos, usarlos (consumirlos) y soltarlos, respetando la capacidad
+maxima de la mochila y los casos limite (mochila llena / objeto que no esta).
+
+    cd 9PM
+    python demo_inventario.py
 """
 
 from inventario import Inventario
@@ -18,38 +21,41 @@ def main():
     inventario = Inventario(capacidad_maxima=3)
 
     separador("1. Inventario vacio")
-    print("Objetos:", [o["nombre"] for o in inventario.objetos])
+    print("Objetos:", inventario.nombres())
 
-    separador("2. Agregar objetos (recoger)")
-    for nombre in ["libro", "carne_estudiantil", "usb"]:
-        objeto = crear_objeto(nombre)
-        agregado = inventario.agregar(objeto)
-        print(f"Agregar '{nombre}': {'OK' if agregado else 'RECHAZADO (inventario lleno)'}")
-    print("Objetos actuales:", [o["nombre"] for o in inventario.objetos])
+    separador("2. AGREGAR objetos (recoger) -> list.append()")
+    for nombre in ["libro", "usb", "cafe"]:
+        agregado = inventario.agregar(crear_objeto(nombre))
+        print(f"agregar('{nombre}'): {'OK' if agregado else 'RECHAZADO (mochila llena)'}")
+    print("Objetos actuales:", inventario.nombres())
 
-    separador("3. Inventario lleno: intentar agregar un cuarto objeto")
-    objeto_extra = crear_objeto("linterna")
-    agregado = inventario.agregar(objeto_extra)
-    print(f"Agregar 'linterna' con inventario lleno: {'OK' if agregado else 'RECHAZADO'}")
+    separador("3. Caso limite: AGREGAR con la mochila llena")
+    agregado = inventario.agregar(crear_objeto("llaves"))
+    print("agregar('llaves') con mochila llena:", "OK" if agregado else "RECHAZADO")
     print("esta_lleno():", inventario.esta_lleno())
 
-    separador("4. Consultar si se tiene un objeto (usar)")
+    separador("4. Consultar antes de USAR -> tiene()")
     print("tiene('libro'):", inventario.tiene("libro"))
-    print("tiene('linterna'):", inventario.tiene("linterna"))
+    print("tiene('llaves'):", inventario.tiene("llaves"))
 
-    separador("5. Soltar (quitar) un objeto")
-    quitado = inventario.quitar("libro")
-    print("Se solto:", quitado["titulo"] if quitado else None)
-    print("Objetos despues de soltar:", [o["nombre"] for o in inventario.objetos])
+    separador("5. USAR un objeto (se consume: sale de la lista) -> list.remove()")
+    usado = inventario.usar("libro")
+    print("usar('libro') devolvio:", usado["titulo"] if usado else None)
+    print("Objetos despues de usar:", inventario.nombres())
 
-    separador("6. Intentar soltar un objeto que ya no se tiene")
-    quitado = inventario.quitar("libro")
-    print("Resultado:", quitado)
+    separador("6. SOLTAR un objeto (se tira: sale de la lista) -> list.remove()")
+    soltado = inventario.soltar("usb")
+    print("soltar('usb') devolvio:", soltado["titulo"] if soltado else None)
+    print("Objetos despues de soltar:", inventario.nombres())
 
-    separador("7. Ahora hay espacio: agregar la linterna que antes fue rechazada")
-    agregado = inventario.agregar(objeto_extra)
-    print(f"Agregar 'linterna': {'OK' if agregado else 'RECHAZADO'}")
-    print("Objetos finales:", [o["nombre"] for o in inventario.objetos])
+    separador("7. Casos limite: USAR y SOLTAR algo que ya no esta")
+    print("usar('libro'):", inventario.usar("libro"))
+    print("soltar('usb'):", inventario.soltar("usb"))
+
+    separador("8. Ahora hay espacio: AGREGAR las llaves que antes se rechazaron")
+    agregado = inventario.agregar(crear_objeto("llaves"))
+    print("agregar('llaves'):", "OK" if agregado else "RECHAZADO")
+    print("Objetos finales:", inventario.nombres())
 
 
 if __name__ == "__main__":

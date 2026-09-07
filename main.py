@@ -6,9 +6,13 @@ hora, te expulsan del campus por esa noche. Resuelve tus tres pendientes
 (devolver un libro, imprimir un trabajo, hablar con un profesor) y llega al
 parqueadero antes de que te atrapen.
 
+El campus es un mundo más grande que la pantalla: una cámara sigue al
+jugador mientras explora, como en un RPG top-down (estilo Pokémon).
+
 Controles:
     WASD / flechas   moverse
-    ESPACIO          interactuar con la sala más cercana
+    ESPACIO          interactuar / recoger / usar lo más cercano
+    G                soltar el último objeto del inventario
     I / TAB          abrir el inventario
     Z                deshacer el último movimiento (pila de historial)
     ENTER            confirmar en menú / pantallas finales
@@ -31,28 +35,38 @@ from buscador import buscar_por_nombre
 from mapa import crear_mapa_universidad
 from misiones import crear_mision_principal
 from estado_mundo import crear_estado_inicial, avanzar_tiempo, formatear_hora
-from ui_inventario import BotonInventario, PanelInventario, crear_objeto
+from ui_inventario import BotonInventario, PanelInventario, crear_objeto, dibujar_arte, obtener_arte
 
 # --------------------------------------------------------------------------
 # Configuración general
 # --------------------------------------------------------------------------
-ANCHO, ALTO = 960, 640
+ANCHO, ALTO = 960, 640          # tamaño de la ventana (el "viewport")
+MUNDO_ANCHO, MUNDO_ALTO = 2000, 1400   # tamaño real del campus explorable
 FPS = 60
 
 VELOCIDAD_JUGADOR = 190.0     # px/seg
 VELOCIDAD_VIGILANTE = 110.0   # px/seg
 RADIO_INTERACCION = 55
 RADIO_DETECCION = 75
+MARGEN_MUNDO = 30             # cuánto se puede acercar el jugador al borde del mundo
 SEGUNDOS_POR_MINUTO_JUEGO = 1.0   # 1 seg real = 1 minuto de juego
 MINUTOS_DE_GRACIA_TRAS_TOQUE_QUEDA = 15
 
 ARCHIVO_PUNTAJES = Path(__file__).parent / "puntajes.json"
 
 COLOR_FONDO = (10, 14, 33)
-COLOR_PASILLO = (58, 66, 99)
 COLOR_TEXTO = (232, 234, 246)
 COLOR_ACENTO = (255, 205, 92)
 COLOR_PELIGRO = (224, 76, 76)
+
+PASTO_A = (17, 32, 27)
+PASTO_B = (14, 27, 23)
+TAMANO_LOSA = 40
+
+PASILLO_BORDE = (40, 46, 72)
+PASILLO_RELLENO = (78, 88, 126)
+
+EDIFICIO_ANCHO, EDIFICIO_ALTO = 74, 60
 
 SALAS_COLOR = {
     "entrada": (140, 148, 176),
@@ -79,6 +93,18 @@ NOMBRES_SALA = {
     "oficina_profesor": "Oficina del profesor",
     "parqueadero": "Parqueadero",
 }
+
+# Objetos regados por el campus: el jugador los ve en el mapa y los recoge
+# con ESPACIO al acercarse (se guardan como dicts dentro de una lista, igual
+# que el inventario). "libro" y "usb" hacen falta para completar misiones;
+# el resto son de exploración.
+OBJETOS_MAPA = [
+    {"nombre": "libro", "pos": (300, 650)},
+    {"nombre": "usb", "pos": (1100, 640)},
+    {"nombre": "cafe", "pos": (930, 380)},
+    {"nombre": "llaves", "pos": (520, 780)},
+    {"nombre": "paraguas", "pos": (1690, 640)},
+]
 
 MENU, JUGANDO, FIN = "menu", "jugando", "fin"
 
@@ -115,6 +141,13 @@ def crear_glow(radio, color, alpha_max=90):
     return superficie
 
 
+def calcular_camara(objetivo):
+    """Centra la cámara en `objetivo` (x, y) sin mostrar nada fuera del mundo."""
+    cam_x = min(max(objetivo[0] - ANCHO / 2, 0), max(0, MUNDO_ANCHO - ANCHO))
+    cam_y = min(max(objetivo[1] - ALTO / 2, 0), max(0, MUNDO_ALTO - ALTO))
+    return cam_x, cam_y
+
+
 # --------------------------------------------------------------------------
 # Entidades
 # --------------------------------------------------------------------------
@@ -122,6 +155,7 @@ class Jugador:
     def __init__(self, posicion_inicial):
         self.x, self.y = posicion_inicial
         self.distancia_recorrida = 0.0
+        self.direccion = "abajo"
 
     @property
     def pos(self):
@@ -139,11 +173,17 @@ class Jugador:
             dy += 1
         if dx == 0 and dy == 0:
             return 0.0
+
+        if abs(dx) > abs(dy):
+            self.direccion = "derecha" if dx > 0 else "izquierda"
+        elif dy != 0:
+            self.direccion = "abajo" if dy > 0 else "arriba"
+
         largo = math.hypot(dx, dy)
         dx, dy = dx / largo, dy / largo
         paso = VELOCIDAD_JUGADOR * dt
-        nuevo_x = min(max(self.x + dx * paso, 24), ANCHO - 24)
-        nuevo_y = min(max(self.y + dy * paso, 70), ALTO - 40)
+        nuevo_x = min(max(self.x + dx * paso, MARGEN_MUNDO), MUNDO_ANCHO - MARGEN_MUNDO)
+        nuevo_y = min(max(self.y + dy * paso, MARGEN_MUNDO), MUNDO_ALTO - MARGEN_MUNDO)
         recorrido = distancia((self.x, self.y), (nuevo_x, nuevo_y))
         self.x, self.y = nuevo_x, nuevo_y
         return recorrido
@@ -162,6 +202,7 @@ class Vigilante:
         self.x, self.y = mapa.posiciones[self.sala_actual]
         self.ruta_actual = []
         self.punto_indice = 0
+        self.direccion = "abajo"
 
     @property
     def pos(self):
@@ -194,8 +235,13 @@ class Vigilante:
                 self.indice_objetivo = (self.indice_objetivo + 1) % len(self.ciclo)
                 self.ruta_actual = []
         else:
-            self.x += (destino[0] - self.x) / d * paso
-            self.y += (destino[1] - self.y) / d * paso
+            ddx, ddy = destino[0] - self.x, destino[1] - self.y
+            if abs(ddx) > abs(ddy):
+                self.direccion = "derecha" if ddx > 0 else "izquierda"
+            else:
+                self.direccion = "abajo" if ddy > 0 else "arriba"
+            self.x += ddx / d * paso
+            self.y += ddy / d * paso
 
 
 class Toast:
@@ -220,8 +266,10 @@ class Partida:
         self.eventos = ColaEventos()
         self.mision = crear_mision_principal()
         self.mision_libro, self.mision_lab, self.mision_profesor = self.mision.hijas
+        self.objetos_mundo = [dict(objeto, recogido=False) for objeto in OBJETOS_MAPA]
         self.toasts = []
         self._tiempo_acumulado = 0.0
+        self.tiempo_animacion = 0.0
         self.terminado = False
         self.gano = False
         self.motivo_fin = ""
@@ -231,7 +279,7 @@ class Partida:
         self.eventos.programar(Evento(toque_queda - 10, "aviso", {"texto": "Quedan 10 minutos para el toque de queda."}))
         self.eventos.programar(Evento(toque_queda - 5, "aviso", {"texto": "¡Quedan 5 minutos! Los vigilantes ya están alerta."}))
         self.eventos.programar(Evento(toque_queda, "toque_queda", {"texto": "¡Toque de queda! No dejes que te vean."}))
-        self._agregar_toast(f"Explora {NOMBRES_SALA['entrada']} y resuelve tus 3 pendientes antes de las 9PM.")
+        self._agregar_toast("Explora el campus, recoge el libro cerca de la entrada y resuelve tus 3 pendientes antes de las 9PM.")
 
     def _agregar_toast(self, texto):
         self.toasts.insert(0, Toast(texto))
@@ -245,21 +293,44 @@ class Partida:
                 mejor_sala, mejor_dist = nombre, d
         return mejor_sala
 
+    def _objeto_cercano(self):
+        mejor, mejor_dist = None, RADIO_INTERACCION
+        for objeto in self.objetos_mundo:
+            if objeto["recogido"]:
+                continue
+            d = distancia(self.jugador.pos, objeto["pos"])
+            if d < mejor_dist:
+                mejor, mejor_dist = objeto, d
+        return mejor
+
     def interactuar(self):
+        # Primero, ¿hay algo tirado en el mapa al alcance? Recogerlo tiene
+        # prioridad sobre interactuar con una sala.
+        objeto_mundo = self._objeto_cercano()
+        if objeto_mundo is not None:
+            objeto = crear_objeto(objeto_mundo["nombre"])
+            if self.inventario.agregar(objeto):
+                objeto_mundo["recogido"] = True
+                self._agregar_toast(f"Recogiste: {objeto['titulo']}.")
+            else:
+                self._agregar_toast("Tu mochila está llena.")
+            return
+
         sala = self._sala_cercana()
         if sala is None:
             return
-        if sala == "entrada" and not self.mision_libro.completada and not self.inventario.tiene("libro"):
-            if self.inventario.agregar(crear_objeto("libro")):
-                self._agregar_toast("Recogiste el libro que debes devolver a la biblioteca.")
-        elif sala == "biblioteca" and self.inventario.tiene("libro"):
-            self.inventario.quitar("libro")
+        if sala == "biblioteca" and self.inventario.tiene("libro"):
+            self.inventario.usar("libro")   # usar: el libro sale de la lista
             self.mision_libro.completar()
             self._agregar_toast("Devolviste el libro. Misión completa.")
         elif sala == "laboratorio" and not self.mision_lab.completada:
-            self.mision_lab.completar()
-            piso = self.edificio_lab["pisos"][0]
-            self._agregar_toast(f"Imprimiste tu trabajo en {piso['aulas'][0]}. Misión completa.")
+            if self.inventario.tiene("usb"):
+                self.inventario.usar("usb")   # usar: la USB sale de la lista
+                self.mision_lab.completar()
+                piso = self.edificio_lab["pisos"][0]
+                self._agregar_toast(f"Imprimiste tu trabajo en {piso['aulas'][0]}. Misión completa.")
+            else:
+                self._agregar_toast("Necesitas la USB del salón 101 antes de imprimir.")
         elif sala == "oficina_profesor" and not self.mision_profesor.completada:
             self.mision_profesor.completar()
             self._agregar_toast("Hablaste con el profesor. Misión completa.")
@@ -270,6 +341,20 @@ class Partida:
                 self.motivo_fin = "Saliste del campus a tiempo."
             else:
                 self._agregar_toast("Todavía tienes pendientes antes de irte.")
+
+    def soltar_objeto(self):
+        # Suelta el último objeto de la lista del inventario y lo deja tirado
+        # en el mapa, en la posición del jugador, para poder recogerlo luego.
+        objeto = self.inventario.soltar_ultimo()
+        if objeto is None:
+            self._agregar_toast("No tienes nada que soltar.")
+            return
+        self.objetos_mundo.append({
+            "nombre": objeto["nombre"],
+            "pos": (self.jugador.x, self.jugador.y + 24),
+            "recogido": False,
+        })
+        self._agregar_toast(f"Soltaste: {objeto['titulo']}.")
 
     def deshacer_movimiento(self):
         anterior = self.historial.deshacer()
@@ -287,6 +372,8 @@ class Partida:
     def actualizar(self, dt, teclas):
         if self.terminado:
             return
+
+        self.tiempo_animacion += dt
 
         recorrido = self.jugador.mover(dt, teclas)
         self.jugador.distancia_recorrida += recorrido
@@ -330,17 +417,48 @@ class Partida:
 
 
 # --------------------------------------------------------------------------
-# Dibujo
+# Dibujo del mundo (todo lo que se mueve con la cámara)
 # --------------------------------------------------------------------------
-def dibujar_fondo_noche(pantalla, estrellas):
+def dibujar_suelo(pantalla, camara):
+    cam_x, cam_y = camara
+    columna_inicial = int(cam_x // TAMANO_LOSA)
+    fila_inicial = int(cam_y // TAMANO_LOSA)
+    columnas = ANCHO // TAMANO_LOSA + 2
+    filas = ALTO // TAMANO_LOSA + 2
+    for fila in range(filas):
+        for columna in range(columnas):
+            col_mundo = columna_inicial + columna
+            fila_mundo = fila_inicial + fila
+            color = PASTO_A if (col_mundo + fila_mundo) % 2 == 0 else PASTO_B
+            x = col_mundo * TAMANO_LOSA - cam_x
+            y = fila_mundo * TAMANO_LOSA - cam_y
+            pygame.draw.rect(pantalla, color, (x, y, TAMANO_LOSA, TAMANO_LOSA))
+
+
+def dibujar_fondo_noche(pantalla, camara, luciernagas, tiempo):
     pantalla.fill(COLOR_FONDO)
-    for x, y, r in estrellas:
-        pygame.draw.circle(pantalla, (200, 205, 230), (x, y), r)
+    dibujar_suelo(pantalla, camara)
+
+    cam_x, cam_y = camara
+    vista = pygame.Rect(cam_x - 20, cam_y - 20, ANCHO + 40, ALTO + 40)
+    for x, y, r in luciernagas:
+        if not vista.collidepoint(x, y):
+            continue
+        parpadeo = 0.5 + 0.5 * math.sin(tiempo * 2 + (x + y) * 0.01)
+        color = (int(70 + 130 * parpadeo), int(80 + 140 * parpadeo), int(60 + 90 * parpadeo))
+        pygame.draw.circle(pantalla, color, (int(x - cam_x), int(y - cam_y)), r)
+
+    # La luna queda fija en pantalla (es el cielo, no el mundo).
     pygame.draw.circle(pantalla, (235, 235, 210), (ANCHO - 70, 60), 30)
     pygame.draw.circle(pantalla, COLOR_FONDO, (ANCHO - 58, 50), 26)
 
 
-def dibujar_mapa(pantalla, mapa, glows):
+def dibujar_mapa(pantalla, mapa, glows, camara):
+    cam_x, cam_y = camara
+
+    def a_pantalla(pos):
+        return (pos[0] - cam_x, pos[1] - cam_y)
+
     ya_dibujadas = set()
     for sala, vecinos in mapa.grafo.items():
         for vecino in vecinos:
@@ -348,35 +466,100 @@ def dibujar_mapa(pantalla, mapa, glows):
             if clave in ya_dibujadas:
                 continue
             ya_dibujadas.add(clave)
-            pygame.draw.line(pantalla, COLOR_PASILLO, mapa.posiciones[sala], mapa.posiciones[vecino], 5)
+            pygame.draw.line(pantalla, PASILLO_BORDE, a_pantalla(mapa.posiciones[sala]), a_pantalla(mapa.posiciones[vecino]), 34)
+    ya_dibujadas.clear()
+    for sala, vecinos in mapa.grafo.items():
+        for vecino in vecinos:
+            clave = tuple(sorted((sala, vecino)))
+            if clave in ya_dibujadas:
+                continue
+            ya_dibujadas.add(clave)
+            pygame.draw.line(pantalla, PASILLO_RELLENO, a_pantalla(mapa.posiciones[sala]), a_pantalla(mapa.posiciones[vecino]), 22)
+    for pos in mapa.posiciones.values():
+        pygame.draw.circle(pantalla, PASILLO_RELLENO, a_pantalla(pos), 12)
 
     for nombre, pos in mapa.posiciones.items():
+        px, py = a_pantalla(pos)
         glow = glows[nombre]
-        pantalla.blit(glow, (pos[0] - glow.get_width() // 2, pos[1] - glow.get_height() // 2))
-        pygame.draw.circle(pantalla, SALAS_COLOR[nombre], pos, 16)
-        pygame.draw.circle(pantalla, COLOR_TEXTO, pos, 16, 2)
+        pantalla.blit(glow, (px - glow.get_width() // 2, py - glow.get_height() // 2))
+
+        sombra = pygame.Rect(0, 0, EDIFICIO_ANCHO - 14, 14)
+        sombra.center = (px, py + EDIFICIO_ALTO // 2 + 2)
+        pygame.draw.ellipse(pantalla, (8, 10, 22), sombra)
+
+        color = SALAS_COLOR[nombre]
+        techo = tuple(max(0, c - 60) for c in color)
+        rect = pygame.Rect(0, 0, EDIFICIO_ANCHO, EDIFICIO_ALTO)
+        rect.center = (px, py)
+        pygame.draw.rect(pantalla, color, rect, border_radius=10)
+        pygame.draw.rect(pantalla, techo, (rect.x, rect.y, rect.w, 18), border_radius=10)
+        pygame.draw.rect(pantalla, COLOR_TEXTO, rect, 2, border_radius=10)
+
+        puerta = pygame.Rect(0, 0, 16, 22)
+        puerta.midbottom = rect.midbottom
+        pygame.draw.rect(pantalla, (30, 24, 14), puerta, border_radius=3)
+        pygame.draw.rect(pantalla, (60, 48, 26), puerta, 2, border_radius=3)
 
 
-def dibujar_etiquetas(pantalla, mapa, fuente):
+def dibujar_etiquetas(pantalla, mapa, fuente, camara):
+    cam_x, cam_y = camara
     for nombre, pos in mapa.posiciones.items():
         texto = fuente.render(NOMBRES_SALA[nombre], True, COLOR_TEXTO)
-        pantalla.blit(texto, (pos[0] - texto.get_width() // 2, pos[1] + 20))
+        pantalla.blit(texto, (pos[0] - cam_x - texto.get_width() // 2, pos[1] - cam_y + EDIFICIO_ALTO // 2 + 6))
 
 
-def dibujar_jugador(pantalla, jugador, glow_linterna):
-    pantalla.blit(glow_linterna, (jugador.x - glow_linterna.get_width() // 2, jugador.y - glow_linterna.get_height() // 2))
-    pygame.draw.circle(pantalla, COLOR_ACENTO, (int(jugador.x), int(jugador.y)), 10)
-    pygame.draw.circle(pantalla, (60, 45, 10), (int(jugador.x), int(jugador.y)), 10, 2)
+def dibujar_objetos_mundo(pantalla, objetos_mundo, jugador_pos, tiempo, camara):
+    cam_x, cam_y = camara
+    for objeto in objetos_mundo:
+        if objeto["recogido"]:
+            continue
+        x, y = objeto["pos"]
+        bamboleo = math.sin(tiempo * 3 + x * 0.05) * 4
+        px, py = x - cam_x, y - cam_y + bamboleo
+
+        pygame.draw.ellipse(pantalla, (8, 10, 22), (px - 12, py + 16, 24, 8))
+
+        if distancia(jugador_pos, (x, y)) < RADIO_INTERACCION:
+            pygame.draw.circle(pantalla, COLOR_ACENTO, (int(px), int(py + 4)), 24, 2)
+
+        dibujar_arte(pantalla, obtener_arte(crear_objeto(objeto["nombre"])), (int(px), int(py)), 4)
 
 
-def dibujar_vigilante(pantalla, vigilante, activo, glow_peligro):
+def _dibujar_capsula(pantalla, cx, cy, color, color_borde, direccion):
+    """Personaje sencillo estilo 'Among Us': cápsula + visor que mira hacia
+    donde te mueves, para que se note la dirección al explorar el campus."""
+    cuerpo = pygame.Rect(0, 0, 22, 30)
+    cuerpo.center = (cx, cy)
+    pygame.draw.rect(pantalla, color, cuerpo, border_radius=11)
+    pygame.draw.rect(pantalla, color_borde, cuerpo, 2, border_radius=11)
+
+    visor = pygame.Rect(0, 0, 15, 10)
+    offsets = {"abajo": (0, -1), "arriba": (0, -9), "izquierda": (-5, -5), "derecha": (5, -5)}
+    dx, dy = offsets.get(direccion, (0, -1))
+    visor.center = (cx + dx, cy + dy)
+    pygame.draw.ellipse(pantalla, (196, 224, 235), visor)
+    pygame.draw.ellipse(pantalla, (60, 60, 70), visor, 1)
+
+
+def dibujar_jugador(pantalla, jugador, glow_linterna, camara):
+    px, py = jugador.x - camara[0], jugador.y - camara[1]
+    pantalla.blit(glow_linterna, (px - glow_linterna.get_width() // 2, py - glow_linterna.get_height() // 2))
+    pygame.draw.ellipse(pantalla, (8, 10, 22), (px - 12, py + 12, 24, 8))
+    _dibujar_capsula(pantalla, px, py, COLOR_ACENTO, (60, 45, 10), jugador.direccion)
+
+
+def dibujar_vigilante(pantalla, vigilante, activo, glow_peligro, camara):
+    px, py = vigilante.x - camara[0], vigilante.y - camara[1]
     if activo:
-        pantalla.blit(glow_peligro, (vigilante.x - glow_peligro.get_width() // 2, vigilante.y - glow_peligro.get_height() // 2))
+        pantalla.blit(glow_peligro, (px - glow_peligro.get_width() // 2, py - glow_peligro.get_height() // 2))
     color = COLOR_PELIGRO if activo else (150, 90, 90)
-    pygame.draw.circle(pantalla, color, (int(vigilante.x), int(vigilante.y)), 11)
-    pygame.draw.circle(pantalla, (30, 10, 10), (int(vigilante.x), int(vigilante.y)), 11, 2)
+    pygame.draw.ellipse(pantalla, (8, 10, 22), (px - 13, py + 13, 26, 8))
+    _dibujar_capsula(pantalla, px, py, color, (30, 10, 10), vigilante.direccion)
 
 
+# --------------------------------------------------------------------------
+# Dibujo de interfaz (fijo en pantalla, no se mueve con la cámara)
+# --------------------------------------------------------------------------
 def dibujar_hud(pantalla, partida, fuentes):
     fuente_reloj, fuente_normal, fuente_chica = fuentes["reloj"], fuentes["normal"], fuentes["chica"]
 
@@ -406,7 +589,7 @@ def dibujar_hud(pantalla, partida, fuentes):
         pantalla.blit(letra, (x + 7, ALTO - 26))
         x += 28
 
-    ayuda = fuente_chica.render("WASD: moverte  |  ESPACIO: interactuar  |  I: inventario  |  Z: deshacer  |  F: buscar", True, (150, 156, 190))
+    ayuda = fuente_chica.render("WASD: moverte  |  ESPACIO: recoger/usar  |  G: soltar  |  I: inventario  |  Z: deshacer  |  F: buscar", True, (150, 156, 190))
     pantalla.blit(ayuda, (ANCHO - ayuda.get_width() - 12, ALTO - 26))
 
 
@@ -415,7 +598,7 @@ def dibujar_menu(pantalla, fuentes, puntajes):
     titulo = fuentes["titulo"].render("9PM", True, COLOR_ACENTO)
     pantalla.blit(titulo, (ANCHO // 2 - titulo.get_width() // 2, 110))
     subtitulo = fuentes["normal"].render(
-        "No dejes que la universidad te saque a las 9. Resuelve tus pendientes y vete a tiempo.",
+        "No dejes que la universidad te saque a las 9. Explora el campus y vete a tiempo.",
         True, COLOR_TEXTO,
     )
     pantalla.blit(subtitulo, (ANCHO // 2 - subtitulo.get_width() // 2, 190))
@@ -469,10 +652,13 @@ def main():
         "chica": pygame.font.SysFont("segoeui", 15),
     }
 
-    estrellas = [(random.randint(0, ANCHO), random.randint(0, ALTO - 100), random.randint(1, 2)) for _ in range(90)]
+    luciernagas = [
+        (random.randint(0, MUNDO_ANCHO), random.randint(0, MUNDO_ALTO), random.randint(1, 2))
+        for _ in range(260)
+    ]
     mapa = crear_mapa_universidad()
-    glows = {nombre: crear_glow(46, SALAS_COLOR[nombre]) for nombre in mapa.posiciones}
-    glow_linterna = crear_glow(120, (255, 221, 130), alpha_max=55)
+    glows = {nombre: crear_glow(58, SALAS_COLOR[nombre]) for nombre in mapa.posiciones}
+    glow_linterna = crear_glow(130, (255, 221, 130), alpha_max=55)
     glow_peligro = crear_glow(RADIO_DETECCION + 10, COLOR_PELIGRO, alpha_max=40)
 
     puntajes = ordenar_puntajes(cargar_puntajes())
@@ -482,6 +668,7 @@ def main():
 
     estado_juego = MENU
     partida = None
+    camara = (0, 0)
 
     ejecutando = True
     while ejecutando:
@@ -514,6 +701,8 @@ def main():
                     estado_juego = JUGANDO
                 elif estado_juego == JUGANDO and evento.key == pygame.K_SPACE:
                     partida.interactuar()
+                elif estado_juego == JUGANDO and evento.key == pygame.K_g:
+                    partida.soltar_objeto()
                 elif estado_juego == JUGANDO and evento.key == pygame.K_z:
                     partida.deshacer_movimiento()
                 elif estado_juego == JUGANDO and evento.key == pygame.K_f:
@@ -527,6 +716,7 @@ def main():
             panel_inventario.actualizar(dt, pos_mouse)
             if not panel_inventario.abierto:   # revisar la bolsa pausa la noche
                 partida.actualizar(dt, pygame.key.get_pressed())
+            camara = calcular_camara(partida.jugador.pos)
             if partida.terminado:
                 puntajes = guardar_puntaje(partida.calcular_puntaje(), puntajes)
                 panel_inventario.cerrar()
@@ -535,11 +725,12 @@ def main():
         if estado_juego == MENU:
             dibujar_menu(pantalla, fuentes, puntajes)
         elif estado_juego == JUGANDO:
-            dibujar_fondo_noche(pantalla, estrellas)
-            dibujar_mapa(pantalla, mapa, glows)
-            dibujar_vigilante(pantalla, partida.vigilante, partida.estado_mundo["toque_queda_activo"], glow_peligro)
-            dibujar_jugador(pantalla, partida.jugador, glow_linterna)
-            dibujar_etiquetas(pantalla, mapa, fuentes["chica"])
+            dibujar_fondo_noche(pantalla, camara, luciernagas, partida.tiempo_animacion)
+            dibujar_mapa(pantalla, mapa, glows, camara)
+            dibujar_objetos_mundo(pantalla, partida.objetos_mundo, partida.jugador.pos, partida.tiempo_animacion, camara)
+            dibujar_vigilante(pantalla, partida.vigilante, partida.estado_mundo["toque_queda_activo"], glow_peligro, camara)
+            dibujar_jugador(pantalla, partida.jugador, glow_linterna, camara)
+            dibujar_etiquetas(pantalla, mapa, fuentes["chica"], camara)
             dibujar_hud(pantalla, partida, fuentes)
             panel_inventario.dibujar(pantalla, partida.inventario)
             # El boton va encima del panel para que siga legible y clickeable

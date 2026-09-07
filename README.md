@@ -25,7 +25,8 @@ python main.py
 | Tecla | Acción |
 |---|---|
 | `W A S D` / flechas | Moverse |
-| `ESPACIO` | Interactuar con la sala más cercana |
+| `ESPACIO` | Recoger el objeto cercano, o usarlo en su sala (libro en la biblioteca, USB en el laboratorio) |
+| `G` | Soltar el último objeto del inventario (queda tirado en el mapa) |
 | `I` / `TAB` / clic en **BOLSA** | Abrir y cerrar el inventario (pausa la partida) |
 | Flechas / clic | Moverte entre las ranuras del inventario |
 | `Z` | Deshacer el último movimiento |
@@ -41,7 +42,7 @@ funcionando dentro del juego (no son solo plantillas vacías):
 | Archivo | Tema | Uso dentro de 9PM |
 |---|---|---|
 | `main.py` | — | Arma el juego: ventana, bucle principal, estados (menú/jugando/fin), dibujo |
-| `inventario.py` | Semana 3 — lista | Objetos que el jugador recoge (ej. el libro) |
+| `inventario.py` | Semana 3 — lista | Inventario del jugador: agregar (recoger), usar y soltar objetos con una lista |
 | `ui_inventario.py` | — | Botón y panel del inventario en estilo 8/16 bits (sprites, rarezas, rejilla de ranuras) |
 | `historial.py` | Semana 5 — pila | Deshacer el último movimiento (`Z`) |
 | `eventos.py` | Semana 6 — cola | Avisos programados (10 min, 5 min, toque de queda) |

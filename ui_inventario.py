@@ -80,6 +80,63 @@ CATALOGO = {
             ],
         },
     },
+    "cafe": {
+        "titulo": "Café para el sueño",
+        "icono": "C",
+        "rareza": "comun",
+        "descripcion": "Recién servido en la cafetería. Te ayuda a aguantar despierto.",
+        "arte": {
+            "paleta": {"a": (170, 110, 60), "b": (90, 55, 26), "c": (235, 235, 235)},
+            "pixeles": [
+                "  c  c  ",
+                "        ",
+                "  aaaa  ",
+                " abbbba ",
+                " abbbba ",
+                " abbbba ",
+                "  aaaa  ",
+                "        ",
+            ],
+        },
+    },
+    "llaves": {
+        "titulo": "Llaves del casillero",
+        "icono": "K",
+        "rareza": "comun",
+        "descripcion": "Las llaves de tu casillero en el patio central. Mejor no perderlas.",
+        "arte": {
+            "paleta": {"a": (200, 202, 214), "b": (120, 122, 138)},
+            "pixeles": [
+                "        ",
+                " aaa    ",
+                " a a    ",
+                " aaa bb ",
+                "    b   ",
+                "    bb  ",
+                "    b   ",
+                "        ",
+            ],
+        },
+    },
+    "paraguas": {
+        "titulo": "Paraguas olvidado",
+        "icono": "P",
+        "rareza": "epico",
+        "descripcion": "Alguien lo dejó botado hace semanas junto al auditorio. Amuleto de la suerte.",
+        "arte": {
+            "paleta": {"a": (198, 62, 90), "b": (232, 200, 210), "c": (120, 80, 40)},
+            "pixeles": [
+                "  aaaa  ",
+                " aabaaa ",
+                "aabababa",
+                "aaaaaaaa",
+                "   c    ",
+                "   c    ",
+                "   cc   ",
+                "        ",
+            ],
+        },
+    },
 }
 
 # Sprite genérico para cualquier objeto que todavía no esté en el catálogo.
@@ -220,6 +277,12 @@ def _scanlines(tam):
 
 def _arte_de(objeto):
     return CATALOGO.get(objeto["nombre"], {}).get("arte", ARTE_GENERICO)
+
+
+def obtener_arte(objeto):
+    """Version publica de `_arte_de`, para dibujar objetos fuera de este módulo
+    (por ejemplo, los objetos tirados por el mapa en `main.py`)."""
+    return _arte_de(objeto)
 
 
 # --------------------------------------------------------------------------

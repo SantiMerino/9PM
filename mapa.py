@@ -57,19 +57,24 @@ class MapaCampus:
 
 
 def crear_mapa_universidad():
-    """Arma el grafo del campus de 9PM con sus salas y pasillos."""
+    """Arma el grafo del campus de 9PM con sus salas y pasillos.
+
+    Las posiciones cubren un mundo grande (ver MUNDO_ANCHO/MUNDO_ALTO en
+    main.py) para que el campus se pueda explorar libremente con una cámara
+    que sigue al jugador, en vez de caber entero en una sola pantalla.
+    """
     mapa = MapaCampus()
     salas = {
-        "entrada": (90, 320),
-        "patio_central": (280, 320),
-        "biblioteca": (280, 130),
-        "cafeteria": (480, 130),
-        "salon_101": (480, 320),
-        "salon_102": (680, 320),
-        "laboratorio": (680, 130),
-        "auditorio": (860, 320),
-        "oficina_profesor": (280, 500),
-        "parqueadero": (860, 500),
+        "entrada": (220, 700),
+        "patio_central": (620, 700),
+        "biblioteca": (620, 320),
+        "cafeteria": (1020, 320),
+        "salon_101": (1020, 700),
+        "salon_102": (1420, 700),
+        "laboratorio": (1420, 320),
+        "auditorio": (1780, 700),
+        "oficina_profesor": (620, 1080),
+        "parqueadero": (1780, 1080),
     }
     for nombre, pos in salas.items():
         mapa.agregar_sala(nombre, pos)

@@ -13,6 +13,14 @@ visto desde arriba: exploras un mapa fijo (el campus) libremente, recoges
 objetos, hablas con NPCs y evitas a un vigilante que patrulla, todo ambientado
 de noche.
 
+## Equipo
+
+- José Santiago Merino Herrera
+- Frederick William Argueta Tejada
+- Nathaly Alessandra Mena Guevara
+- Juan Diego Cornejo Gonzalez
+- Ricardo Andres Vides Portillo
+
 ## Cómo correrlo
 
 ```bash

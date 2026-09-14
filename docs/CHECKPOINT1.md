@@ -1,6 +1,14 @@
 # Checkpoint 1 — Aventura Algorítmica: *9PM*
 
-Equipo de 4 · Semanas 1 a 3 · 10% de la nota final
+Equipo de 5 · Semanas 1 a 3 · 10% de la nota final
+
+**Integrantes:**
+
+- José Santiago Merino Herrera
+- Frederick William Argueta Tejada
+- Nathaly Alessandra Mena Guevara
+- Juan Diego Cornejo Gonzalez
+- Ricardo Andres Vides Portillo
 
 Este documento reúne los cuatro entregables del Checkpoint 1: el concepto del
 juego, el diagrama de flujo con su pseudocódigo de una mecánica, el inventario

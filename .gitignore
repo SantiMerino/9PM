@@ -3,3 +3,5 @@ __pycache__/
 puntajes.json
 .venv/
 venv/
+tutorial.json
+error_9pm.log

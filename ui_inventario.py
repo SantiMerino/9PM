@@ -1,5 +1,5 @@
 """Inventario visual en estilo 8/16 bits: un botón para el HUD y un panel
-tipo Fortnite (rejilla de ranuras + detalle del objeto seleccionado).
+de aventura (rejilla de ranuras + detalle del objeto seleccionado).
 
 Esto es solo presentación: los datos siguen viviendo en `inventario.Inventario`.
 Todo se dibuja con rectángulos de borde duro, sin antialias y sin esquinas
@@ -9,20 +9,21 @@ redondeadas, que es lo que da la sensación de consola vieja.
 import math
 
 import pygame
+from arte_pixel import objeto as sprite_objeto
 
 # --------------------------------------------------------------------------
 # Paleta retro (pocos colores, bien contrastados)
 # --------------------------------------------------------------------------
 NEGRO = (12, 10, 24)
-MARCO_LUZ = (112, 124, 184)
-MARCO_SOMBRA = (26, 28, 58)
-FONDO_PANEL = (30, 34, 68)
-FONDO_CAJA = (20, 23, 48)
-CASILLA = (24, 27, 56)
-CASILLA_HOVER = (44, 50, 96)
-CASILLA_SEL = (62, 70, 130)
+MARCO_LUZ = (105, 161, 154)
+MARCO_SOMBRA = (22, 43, 53)
+FONDO_PANEL = (31, 59, 69)
+FONDO_CAJA = (23, 44, 56)
+CASILLA = (29, 52, 64)
+CASILLA_HOVER = (47, 82, 90)
+CASILLA_SEL = (55, 108, 114)
 TEXTO = (232, 234, 246)
-TEXTO_TENUE = (138, 146, 190)
+TEXTO_TENUE = (164, 193, 180)
 ORO = (255, 205, 92)
 ROJO = (224, 76, 76)
 
@@ -139,6 +140,34 @@ CATALOGO = {
     },
 }
 
+
+# Objetos perdidos de la Torre de Laboratorios: esperan en las salas más
+# profundas (mazmorra.py) y suman puntos si sales del campus con ellos.
+_TESOROS_TORRE = {
+    "disco_duro": ("Disco duro del proyecto", "D", "legendario",
+                   "El respaldo de un proyecto de graduación. Alguien lo va a agradecer."),
+    "calculadora": ("Calculadora graficadora", "G", "epico",
+                    "Tiene un nombre grabado con punta de compás. Vale oro en exámenes."),
+    "bata": ("Bata de laboratorio", "B", "raro",
+             "Talla M, con manchas de reactivo. Lleva un gafete de la feria."),
+    "trofeo": ("Trofeo de la feria", "T", "legendario",
+               "Primer lugar de la feria de proyectos. Nadie sabe cómo llegó ahí."),
+    "tarjeta": ("Tarjeta de acceso", "A", "epico",
+                "Credencial de un técnico del segundo nivel. Mejor devolverla."),
+    "audifonos": ("Audífonos con cancelación", "H", "raro",
+                  "Olvidados junto a un monitor. Todavía suena lo-fi para estudiar."),
+}
+for _nombre, (_titulo, _icono, _rareza, _descripcion) in _TESOROS_TORRE.items():
+    CATALOGO[_nombre] = {"titulo": _titulo, "icono": _icono, "rareza": _rareza,
+                         "descripcion": _descripcion, "tesoro": True}
+TESOROS_TORRE = tuple(_TESOROS_TORRE)
+
+
+def es_tesoro(nombre):
+    """True si el objeto es uno de los objetos perdidos de la Torre."""
+    return CATALOGO.get(nombre, {}).get("tesoro", False)
+
+
 # Sprite genérico para cualquier objeto que todavía no esté en el catálogo.
 ARTE_GENERICO = {
     "paleta": {"a": (140, 148, 176), "b": (90, 96, 128)},
@@ -196,6 +225,11 @@ _FUENTES = {}
 _SCANLINES = {}
 
 
+def reiniciar_fuentes():
+    """Descarta Font de una sesión SDL cerrada antes de volver a iniciar el juego."""
+    _FUENTES.clear()
+
+
 def _fuente(tam):
     if tam not in _FUENTES:
         _FUENTES[tam] = pygame.font.SysFont(
@@ -249,20 +283,18 @@ def marco_pixel(pantalla, rect, relleno, luz=MARCO_LUZ, sombra=MARCO_SOMBRA, gro
 
 
 def dibujar_arte(pantalla, arte, centro, escala):
-    """Pinta un sprite definido como lista de strings, un caracter por pixel."""
-    filas = arte["pixeles"]
-    paleta = arte["paleta"]
-    origen_x = centro[0] - len(filas[0]) * escala // 2
-    origen_y = centro[1] - len(filas) * escala // 2
+    if "sprite" in arte:
+        im = sprite_objeto(arte["sprite"])
+        # Mantener el tamaño visual de los antiguos iconos de 8x8.
+        im = pygame.transform.scale(im, (8*escala, 8*escala))
+        pantalla.blit(im, im.get_rect(center=centro))
+        return
+    filas, paleta = arte["pixeles"], arte["paleta"]
+    ox, oy = centro[0]-len(filas[0])*escala//2, centro[1]-len(filas)*escala//2
     for j, fila in enumerate(filas):
-        for i, caracter in enumerate(fila):
-            color = paleta.get(caracter)
-            if color:
-                pygame.draw.rect(
-                    pantalla,
-                    color,
-                    (origen_x + i * escala, origen_y + j * escala, escala, escala),
-                )
+        for i, c in enumerate(fila):
+            if c in paleta:
+                pygame.draw.rect(pantalla,paleta[c],(ox+i*escala,oy+j*escala,escala,escala))
 
 
 def _scanlines(tam):
@@ -270,13 +302,13 @@ def _scanlines(tam):
     if tam not in _SCANLINES:
         capa = pygame.Surface(tam, pygame.SRCALPHA)
         for y in range(0, tam[1], 3):
-            pygame.draw.line(capa, (0, 0, 0, 38), (0, y), (tam[0], y))
+            pygame.draw.line(capa, (0, 0, 0, 10), (0, y), (tam[0], y))
         _SCANLINES[tam] = capa
     return _SCANLINES[tam]
 
 
 def _arte_de(objeto):
-    return CATALOGO.get(objeto["nombre"], {}).get("arte", ARTE_GENERICO)
+    return {"sprite": objeto["nombre"]}
 
 
 def obtener_arte(objeto):
@@ -304,17 +336,17 @@ class BotonInventario:
 
     def dibujar(self, pantalla, cantidad, capacidad, abierto):
         if abierto:
-            relleno, luz, sombra = (46, 52, 96), MARCO_SOMBRA, MARCO_LUZ
+            relleno, luz, sombra = (42, 79, 91), MARCO_SOMBRA, MARCO_LUZ
         elif self.hover:
-            relleno, luz, sombra = (58, 64, 112), MARCO_LUZ, MARCO_SOMBRA
+            relleno, luz, sombra = (48, 97, 106), MARCO_LUZ, MARCO_SOMBRA
         else:
-            relleno, luz, sombra = (38, 43, 82), MARCO_LUZ, MARCO_SOMBRA
+            relleno, luz, sombra = (32, 61, 72), MARCO_LUZ, MARCO_SOMBRA
 
         # Cuando está "presionado" el botón baja 2px, como los botones de NES.
         rect = self.rect.move(0, 2 if abierto else 0)
         interior = marco_pixel(pantalla, rect, relleno, luz, sombra)
 
-        dibujar_arte(pantalla, ARTE_MOCHILA, (interior.x + 20, interior.centery), 3)
+        dibujar_arte(pantalla, {"sprite": "mochila"}, (interior.x + 20, interior.centery), 3)
         _texto(pantalla, "BOLSA", (interior.x + 42, interior.y + 6), tam=12,
                color=TEXTO if abierto else ORO)
         lleno = cantidad >= capacidad
@@ -327,7 +359,7 @@ class BotonInventario:
 # Panel del inventario
 # --------------------------------------------------------------------------
 class PanelInventario:
-    """Rejilla de ranuras estilo Fortnite, con el detalle del objeto al lado."""
+    """Rejilla de ranuras de aventura, con el detalle del objeto al lado."""
 
     COLUMNAS = 3
     LADO_RANURA = 84

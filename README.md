@@ -507,15 +507,18 @@ al inventario; y el bucle principal acepta el menú escrito con el teclado.
 
 ### Aporte de cada integrante
 
-> Completar antes de entregar: qué hizo cada persona en este checkpoint.
+**Integrantes:** Santiago Merino · Nathaly Mena · Frederick Argueta ·
+Diego Cornejo · Ricardo Vides
 
-| Integrante | Aporte |
-|---|---|
-| José Santiago Merino Herrera | _por completar_ |
-| Frederick William Argueta Tejada | _por completar_ |
-| Nathaly Alessandra Mena Guevara | _por completar_ |
-| Juan Diego Cornejo Gonzalez | _por completar_ |
-| Ricardo Andres Vides Portillo | _por completar_ |
+El trabajo del checkpoint se repartió en cinco aportes, uno por persona:
+
+| Aporte | Qué incluye | Integrante |
+|---|---|---|
+| **1. Historial con pila** (`historial.py`) | Registrar acciones con `append`, deshacer con `pop`, consultar la cima (*peek*) y mostrar el historial de la más reciente a la más antigua. Funciones de la Guía 5 (`deshacer_multiples`, `contar_acciones_de_tipo`, `invertir_historial`, `deshacer_hasta_tipo`). Reversión real de mover, recoger, usar y soltar; tecla `Z` y panel `H` en el campus, opciones 4, 5 y 6 en la Torre. | |
+| **2. Eventos y turnos con colas** (`eventos.py`) | Cola de los 12 eventos del mapa con `deque` y `popleft`, y sus efectos en la partida (trampas, cámaras, apagones, pistas). Sistema de turnos con estudiante, vigilante y robot de limpieza. Funciones de la Guía 6 (`procesar_multiples_eventos`, `contar_eventos_de_tipo`, `invertir_cola`, `simular_turnos`) y avisos del reloj del campus. | |
+| **3. Mazmorra recursiva** (`mazmorra.py`) | Generación de la Torre de Laboratorios con caso base y caso recursivo, nombres propios de las salas y ramificación variable. Conteo de salas por nivel, salas más profundas marcadas con objetos perdidos y profundidad real alcanzada. Navegación por el árbol (salas conectadas, camino hacia el jugador, búsqueda por nombre). | |
+| **4. Integración, casos límite y pruebas** (`main.py`, `tests/`) | Menú de la Torre dentro del bucle del juego, subida y bajada por las gradas, movimiento que registra en el historial, procesa un evento y juega una ronda. Validación de opciones (texto, 0, negativos, fuera de rango, salas inexistentes o no conectadas), decisión sobre los eventos al deshacer y puntaje de los objetos perdidos. Pruebas automáticas del Checkpoint 2. | |
+| **5. Interfaz, tutorial y documentación** (`ui_torre.py`, `tutorial.py`, `README.md`, `docs/`) | Pantalla de la Torre en pixel art (puertas, barra de acciones, plano), tutorial de bienvenida, sprites y marcas de encargos completados. Documentación técnica del README, árbol de la mazmorra, evidencia de ejecución y capturas. | |
 
 ---
 

@@ -1,0 +1,313 @@
+[20:15] === 9PM · Instituto Kriete ===
+[20:15] Mazmorra generada: Torre de Laboratorios con 14 salas, profundidad 3.
+[20:15] Salas por nivel: nivel 0: 1, nivel 1: 3, nivel 2: 6, nivel 3: 4
+[20:15]   Rellano del segundo nivel
+[20:15]   ├── Corredor de Posgrado
+[20:15]   │   ├── Aula R201
+[20:15]   │   │   └── Closet del Conserje
+[20:15]   │   └── Sala de Simulación
+[20:15]   ├── Galería de Proyectos
+[20:15]   │   ├── Sala de Servidores
+[20:15]   │   │   └── Cuarto Oscuro
+[20:15]   │   └── Laboratorio de Química Analítica
+[20:15]   │       └── Bóveda de Prototipos
+[20:15]   └── Pasillo de Vidrio
+[20:15]       ├── Taller de Impresión 3D
+[20:15]       └── Oficina de Coordinación
+[20:15]           └── Depósito de Baterías
+[20:15] Eventos del mapa en cola: 12. Turnos: Estudiante -> Vigilante de la torre -> Robot de limpieza.
+[20:15] Bienvenido a KEY. Completa 13 encargos y sal antes del cierre. Las gradas suben a la Torre (2º nivel). Q herramienta · M mapa · J misiones · H historial.
+[20:15] No hay acciones que deshacer: el historial está vacío.
+[20:15] Recogiste: Libro atrasado.
+[20:15]   (historial: +recoger · 1 acción en la pila)
+[20:15]   (historial: +mover · 2 acciones en la pila)
+[20:15] === Torre de Laboratorios · 2º nivel ===
+[20:15] Aquí el tiempo corre por turnos: cada ronda gasta 1 minuto del reloj.
+[20:15] Estás en: Rellano del segundo nivel (nivel 0). Un directorio iluminado muestra el plano del piso. Abajo, las gradas al campus.
+[20:15] Salas conectadas: Corredor de Posgrado, Galería de Proyectos, Pasillo de Vidrio · gradas al campus
+[20:15] > Opción: abc
+[20:15] Opción no válida: «abc» no es un número. Elige un número del 1 al 9.
+[20:15] > Opción: 0
+[20:15] Opción no válida: 0 no es una opción. Elige un número del 1 al 9.
+[20:15] > Opción: -1
+[20:15] Opción no válida: -1 es un número negativo. Elige un número del 1 al 9.
+[20:15] > Opción: 12
+[20:15] Opción no válida: 12 está fuera de rango. Elige un número del 1 al 9.
+[20:15] > Opción: 1
+[20:15] Salas conectadas: 1) Corredor de Posgrado   2) Galería de Proyectos   3) Pasillo de Vidrio   4) Bajar por las gradas al campus   5) Cancelar
+[20:15] > Elige una sala: 1
+[20:15] Te mueves a: Corredor de Posgrado
+[20:15]   (historial: +mover · 3 acciones en la pila)
+[20:15] Evento (cofre): Caja de objetos perdidos. Una etiqueta de la caja dice en qué sala quedó otro objeto. (quedan 11 eventos)
+[20:15]   Pista: hay un objeto perdido en Depósito de Baterías. Quedó marcado en el plano.
+[20:15] Ronda 1 de turnos:
+[20:15]   Turno de Estudiante: te moviste a Corredor de Posgrado.
+[20:15]   Turno de Vigilante de la torre: patrulla hacia Laboratorio de Química Analítica.
+[20:15]   Turno de Robot de limpieza: trapea Closet del Conserje.
+[20:16] Estás en: Corredor de Posgrado (nivel 1). Afiches de tesis y un dispensador de agua que gotea.
+[20:16] Salas conectadas: Aula R201, Sala de Simulación, Rellano del segundo nivel
+[20:16] > Opción: 1
+[20:16] Salas conectadas: 1) Aula R201   2) Sala de Simulación   3) Rellano del segundo nivel   4) Cancelar
+[20:16] > Elige una sala: Sótano secreto
+[20:16] La sala «Sótano secreto» no existe en la Torre. Elige un número de la lista.
+[20:16] > Elige una sala: -3
+[20:16] Esa sala no existe o no está conectada: -3 es un número negativo. Elige un número del 1 al 4.
+[20:16] > Elige una sala: 9
+[20:16] Esa sala no existe o no está conectada: 9 está fuera de rango. Elige un número del 1 al 4.
+[20:16] > Elige una sala: Closet del Conserje
+[20:16] No hay paso directo de Corredor de Posgrado a Closet del Conserje: no están conectadas.
+[20:16] > Elige una sala: 1
+[20:16] Te mueves a: Aula R201
+[20:16]   (historial: +mover · 4 acciones en la pila)
+[20:16] Evento (trampa): Cable de red suelto. Se te enreda la mochila en un cable: pierdes 1 minuto. (quedan 10 eventos)
+[20:17] Ronda 2 de turnos:
+[20:17]   Turno de Estudiante: te moviste a Aula R201.
+[20:17]   Turno de Vigilante de la torre: patrulla hacia Galería de Proyectos.
+[20:17]   Turno de Robot de limpieza: trapea Aula R201.
+[20:17]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:18] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:18] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:18] > Opción: 1
+[20:18] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:18] > Elige una sala: 1
+[20:18] Te mueves a: Closet del Conserje
+[20:18]   (historial: +mover · 5 acciones en la pila)
+[20:18] Evento (trampa): Piso recién trapeado. Resbalas en el piso mojado y pierdes 1 minuto. (quedan 9 eventos)
+[20:19] Ronda 3 de turnos:
+[20:19]   Turno de Estudiante: te moviste a Closet del Conserje.
+[20:19]   Turno de Vigilante de la torre: te sigue el rastro hacia Rellano del segundo nivel.
+[20:19]   Turno de Robot de limpieza: trapea Closet del Conserje.
+[20:19]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:20] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:20] Salas conectadas: Aula R201
+[20:20] En el suelo: Audífonos con cancelación · sala marcada (de las más profundas). Opción 2 para recogerlo.
+[20:20] > Opción: 4
+[20:20] Deshaces el movimiento: vuelves a Aula R201.
+[20:20] Ronda 4 de turnos:
+[20:20]   Turno de Estudiante: retrocediste a Aula R201.
+[20:20]   Turno de Vigilante de la torre: te sigue el rastro hacia Corredor de Posgrado.
+[20:20]   Turno de Robot de limpieza: trapea Aula R201.
+[20:20]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:21] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:21] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:21] > Opción: 1
+[20:21] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:21] > Elige una sala: 1
+[20:21] Te mueves a: Closet del Conserje
+[20:21]   (historial: +mover · 5 acciones en la pila)
+[20:21] Evento (mensaje): Afiche de la feria. Se despega un afiche de la feria de proyectos. Nadie más lo vio. (quedan 8 eventos)
+[20:21] Ronda 5 de turnos:
+[20:21]   Turno de Estudiante: te moviste a Closet del Conserje.
+[20:21]   Turno de Vigilante de la torre: te sigue el rastro hacia Aula R201.
+[20:21]   Turno de Robot de limpieza: trapea Corredor de Posgrado.
+[20:22] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:22] Salas conectadas: Aula R201
+[20:22] En el suelo: Audífonos con cancelación · sala marcada (de las más profundas). Opción 2 para recogerlo.
+[20:22] > Opción: 2
+[20:22] Recogiste: Audífonos con cancelación. Entra a tu inventario (2/6).
+[20:22]   (historial: +recoger · 6 acciones en la pila)
+[20:22] > Opción: 6
+[20:22] Historial (6 acciones, de la más reciente a la más antigua):
+[20:22]   1. [20:22] Recoger: Audífonos con cancelación en Closet del Conserje
+[20:22]   2. [20:21] Mover: Aula R201 → Closet del Conserje
+[20:22]   3. [20:16] Mover: Corredor de Posgrado → Aula R201
+[20:22]   4. [20:15] Mover: Rellano del segundo nivel → Corredor de Posgrado
+[20:22]   5. [20:15] Mover: Pasillo → Rellano del segundo nivel (gradas)
+[20:22]   6. [20:15] Recoger: Libro atrasado en el campus
+[20:22]   Cima de la pila (lo próximo que se deshace): Audífonos con cancelación en Closet del Conserje
+[20:22] > Opción: 7
+[20:22] Orden actual de la cola de turnos: Estudiante -> Vigilante de la torre -> Robot de limpieza
+[20:22]   Turno 1: le toca a Estudiante
+[20:22]   Turno 2: le toca a Vigilante de la torre
+[20:22]   Turno 3: le toca a Robot de limpieza
+[20:22]   Turno 4: le toca a Estudiante
+[20:22]   Turno 5: le toca a Vigilante de la torre
+[20:22]   Turno 6: le toca a Robot de limpieza
+[20:22] > Opción: 8
+[20:22] Eventos pendientes en la cola: 8 · Trampas: 1, Vigilante cerca: 2, Cámaras: 1, Apagones: 1, Casilleros: 1, Mensajes: 2
+[20:22] > Opción: 1
+[20:22] Salas conectadas: 1) Aula R201   2) Cancelar
+[20:22] > Elige una sala: 1
+[20:22] Te mueves a: Aula R201
+[20:22]   (historial: +mover · 7 acciones en la pila)
+[20:22] Evento (camara): Cámara de seguridad. Una cámara gira hacia ti: el vigilante te seguirá 3 turnos. (quedan 7 eventos)
+[20:22] Ronda 6 de turnos:
+[20:22]   Turno de Estudiante: te moviste a Aula R201.
+[20:22]   El vigilante te encuentra: «¿Qué haces aquí arriba?». Te sermonea 3 minutos y vuelve a su reporte.
+[20:25]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:25]   Turno de Robot de limpieza: trapea Aula R201.
+[20:25]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:26] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:26] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:26] > Opción: 1
+[20:26] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:26] > Elige una sala: 1
+[20:26] Te mueves a: Closet del Conserje
+[20:26]   (historial: +mover · 8 acciones en la pila)
+[20:26] Evento (enemigo): Pasos en el pasillo. Se oyen pasos: el vigilante de la torre camina hacia ti. (quedan 6 eventos)
+[20:26]   El vigilante pasa de Aula R201 a Closet del Conserje.
+[20:26] Ronda 7 de turnos:
+[20:26]   Turno de Estudiante: te moviste a Closet del Conserje.
+[20:26]   Turno de Vigilante de la torre: se queda en Closet del Conserje llenando un reporte.
+[20:26]   Turno de Robot de limpieza: trapea Closet del Conserje.
+[20:26]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:27] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:27] Salas conectadas: Aula R201
+[20:27] > Opción: 1
+[20:27] Salas conectadas: 1) Aula R201   2) Cancelar
+[20:27] > Elige una sala: 1
+[20:27] Te mueves a: Aula R201
+[20:27]   (historial: +mover · 9 acciones en la pila)
+[20:27] Evento (apagon): Apagón parcial. Las luces parpadean y se apagan: el vigilante pierde tu rastro. (quedan 5 eventos)
+[20:27] Ronda 8 de turnos:
+[20:27]   Turno de Estudiante: te moviste a Aula R201.
+[20:27]   Turno de Vigilante de la torre: se queda en Closet del Conserje llenando un reporte.
+[20:27]   Turno de Robot de limpieza: trapea Aula R201.
+[20:27]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:28] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:28] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:28] > Opción: 1
+[20:28] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:28] > Elige una sala: 1
+[20:28] Te mueves a: Closet del Conserje
+[20:28]   (historial: +mover · 10 acciones en la pila)
+[20:28] Evento (cofre): Casillero entreabierto. Dentro hay una nota: marca en el plano dónde quedó un objeto perdido. (quedan 4 eventos)
+[20:28]   Pista: hay un objeto perdido en Bóveda de Prototipos. Quedó marcado en el plano.
+[20:28] Ronda 9 de turnos:
+[20:28]   Turno de Estudiante: te moviste a Closet del Conserje.
+[20:28]   El vigilante te encuentra: «¿Qué haces aquí arriba?». Te sermonea 3 minutos y vuelve a su reporte.
+[20:31]   Turno de Vigilante de la torre: se queda en Closet del Conserje llenando un reporte.
+[20:31]   Turno de Robot de limpieza: trapea Corredor de Posgrado.
+[20:32] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:32] Salas conectadas: Aula R201
+[20:32] > Opción: 1
+[20:32] Salas conectadas: 1) Aula R201   2) Cancelar
+[20:32] > Elige una sala: 1
+[20:32] Te mueves a: Aula R201
+[20:32]   (historial: +mover · 11 acciones en la pila)
+[20:32] Evento (mensaje): Ventana al jardín. Desde la ventana ves al vigilante del campus cruzar el jardín. (quedan 3 eventos)
+[20:32] Ronda 10 de turnos:
+[20:32]   Turno de Estudiante: te moviste a Aula R201.
+[20:32]   Turno de Vigilante de la torre: se queda en Closet del Conserje llenando un reporte.
+[20:32]   Turno de Robot de limpieza: trapea Rellano del segundo nivel.
+[20:33] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:33] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:33] > Opción: 1
+[20:33] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:33] > Elige una sala: 1
+[20:33] Te mueves a: Closet del Conserje
+[20:33]   (historial: +mover · 12 acciones en la pila)
+[20:33] Evento (enemigo): Radio del vigilante. Chilla un radio: «Revisen el segundo nivel». El vigilante se acerca. (quedan 2 eventos)
+[20:33]   El vigilante pasa de Closet del Conserje a Closet del Conserje.
+[20:33] Ronda 11 de turnos:
+[20:33]   Turno de Estudiante: te moviste a Closet del Conserje.
+[20:33]   Turno de Vigilante de la torre: se queda en Closet del Conserje llenando un reporte.
+[20:33]   Turno de Robot de limpieza: trapea Corredor de Posgrado.
+[20:34] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:34] Salas conectadas: Aula R201
+[20:34] > Opción: 1
+[20:34] Salas conectadas: 1) Aula R201   2) Cancelar
+[20:34] > Elige una sala: 1
+[20:34] Te mueves a: Aula R201
+[20:34]   (historial: +mover · 13 acciones en la pila)
+[20:34] Evento (trampa): Puerta corrediza trabada. La puerta se traba a medio camino: forcejeas 2 minutos. (queda 1 evento)
+[20:36] Ronda 12 de turnos:
+[20:36]   Turno de Estudiante: te moviste a Aula R201.
+[20:36]   Turno de Vigilante de la torre: patrulla hacia Aula R201.
+[20:36]   El vigilante te encuentra: «¿Qué haces aquí arriba?». Te sermonea 3 minutos y vuelve a su reporte.
+[20:39]   Turno de Robot de limpieza: trapea Rellano del segundo nivel.
+[20:40] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:40] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:40] > Opción: 1
+[20:40] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:40] > Elige una sala: 1
+[20:40] Te mueves a: Closet del Conserje
+[20:40]   (historial: +mover · 14 acciones en la pila)
+[20:40] Evento (mensaje): Pizarra olvidada. Alguien escribió: «Examen de EDA el lunes: pilas, colas y recursión». (quedan 0 eventos)
+[20:40] Ronda 13 de turnos:
+[20:40]   Turno de Estudiante: te moviste a Closet del Conserje.
+[20:40]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:40]   Turno de Robot de limpieza: trapea Corredor de Posgrado.
+[20:41] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:41] Salas conectadas: Aula R201
+[20:41] > Opción: 1
+[20:41] Salas conectadas: 1) Aula R201   2) Cancelar
+[20:41] > Elige una sala: 1
+[20:41] Te mueves a: Aula R201
+[20:41]   (historial: +mover · 15 acciones en la pila)
+[20:41] Evento: silencio total. La cola de eventos de este piso está vacía.
+[20:41] Ronda 14 de turnos:
+[20:41]   Turno de Estudiante: te moviste a Aula R201.
+[20:41]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:41]   Turno de Robot de limpieza: trapea Rellano del segundo nivel.
+[20:42] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:42] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:42] > Opción: 8
+[20:42] La cola de eventos está vacía: los próximos movimientos serán en silencio.
+[20:42] > Opción: 5
+[20:42] Puedes deshacer de 1 a 13 acciones de la Torre (ESC cancela).
+[20:42] > ¿Cuántas acciones deshaces?: 2
+[20:42] Deshaces el movimiento: vuelves a Closet del Conserje.
+[20:42] Ronda 15 de turnos:
+[20:42]   Turno de Estudiante: retrocediste a Closet del Conserje.
+[20:42]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:42]   Turno de Robot de limpieza: trapea Corredor de Posgrado.
+[20:43] Estás en: Closet del Conserje (nivel 3). Trapeadores, cubetas y la radio del conserje.
+[20:43] Salas conectadas: Aula R201
+[20:43] Deshaces el movimiento: vuelves a Aula R201.
+[20:43] Ronda 16 de turnos:
+[20:43]   Turno de Estudiante: retrocediste a Aula R201.
+[20:43]   El vigilante te encuentra: «¿Qué haces aquí arriba?». Te sermonea 3 minutos y vuelve a su reporte.
+[20:46]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:46]   Turno de Robot de limpieza: trapea Sala de Simulación.
+[20:47] Estás en: Aula R201 (nivel 2). Pupitres en filas y una pizarra a medio borrar.
+[20:47] Salas conectadas: Closet del Conserje, Corredor de Posgrado
+[20:47] > Opción: 1
+[20:47] Salas conectadas: 1) Closet del Conserje   2) Corredor de Posgrado   3) Cancelar
+[20:47] > Elige una sala: 2
+[20:47] Te mueves a: Corredor de Posgrado
+[20:47]   (historial: +mover · 14 acciones en la pila)
+[20:47] Evento: silencio total. La cola de eventos de este piso está vacía.
+[20:47] Ronda 17 de turnos:
+[20:47]   Turno de Estudiante: te moviste a Corredor de Posgrado.
+[20:47]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:47]   Turno de Robot de limpieza: trapea Corredor de Posgrado.
+[20:47]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:48] Estás en: Corredor de Posgrado (nivel 1). Afiches de tesis y un dispensador de agua que gotea.
+[20:48] Salas conectadas: Aula R201, Sala de Simulación, Rellano del segundo nivel
+[20:48] > Opción: 1
+[20:48] Salas conectadas: 1) Aula R201   2) Sala de Simulación   3) Rellano del segundo nivel   4) Cancelar
+[20:48] > Elige una sala: 3
+[20:48] Te mueves a: Rellano del segundo nivel
+[20:48]   (historial: +mover · 15 acciones en la pila)
+[20:48] Evento: silencio total. La cola de eventos de este piso está vacía.
+[20:48] Ronda 18 de turnos:
+[20:48]   Turno de Estudiante: te moviste a Rellano del segundo nivel.
+[20:48]   Turno de Vigilante de la torre: se queda en Aula R201 llenando un reporte.
+[20:48]   Turno de Robot de limpieza: trapea Rellano del segundo nivel.
+[20:48]   ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.
+[20:49] Estás en: Rellano del segundo nivel (nivel 0). Un directorio iluminado muestra el plano del piso. Abajo, las gradas al campus.
+[20:49] Salas conectadas: Corredor de Posgrado, Galería de Proyectos, Pasillo de Vidrio · gradas al campus
+[20:49] > Opción: 1
+[20:49] Salas conectadas: 1) Corredor de Posgrado   2) Galería de Proyectos   3) Pasillo de Vidrio   4) Bajar por las gradas al campus   5) Cancelar
+[20:49] > Elige una sala: 4
+[20:49]   (historial: +mover · 16 acciones en la pila)
+[20:49] Bajaste por las gradas al campus.
+[20:49] Historial (16 acciones, de la más reciente a la más antigua):
+[20:49]   1. [20:49] Mover: Rellano del segundo nivel → Pasillo (gradas)
+[20:49]   2. [20:48] Mover: Corredor de Posgrado → Rellano del segundo nivel
+[20:49]   3. [20:47] Mover: Aula R201 → Corredor de Posgrado
+[20:49]   4. [20:34] Mover: Closet del Conserje → Aula R201
+[20:49]   5. [20:33] Mover: Aula R201 → Closet del Conserje
+[20:49]   6. [20:32] Mover: Closet del Conserje → Aula R201
+[20:49]   7. [20:28] Mover: Aula R201 → Closet del Conserje
+[20:49]   8. [20:27] Mover: Closet del Conserje → Aula R201
+[20:49]   9. [20:26] Mover: Aula R201 → Closet del Conserje
+[20:49]   10. [20:22] Mover: Closet del Conserje → Aula R201
+[20:49]   11. [20:22] Recoger: Audífonos con cancelación en Closet del Conserje
+[20:49]   12. [20:21] Mover: Aula R201 → Closet del Conserje
+[20:49]   13. [20:16] Mover: Corredor de Posgrado → Aula R201
+[20:49]   14. [20:15] Mover: Rellano del segundo nivel → Corredor de Posgrado
+[20:49]   15. [20:15] Mover: Pasillo → Rellano del segundo nivel (gradas)
+[20:49]   16. [20:15] Recoger: Libro atrasado en el campus
+[20:49]   Cima de la pila (lo próximo que se deshace): Rellano del segundo nivel → Pasillo (gradas)

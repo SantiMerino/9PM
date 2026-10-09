@@ -9,8 +9,8 @@ def crear_estado_inicial():
         "luces_encendidas": {
             "biblioteca": True,
             "cafeteria": True,
-            "laboratorio": True,
-            "auditorio": True,
+            "lab_siemens": True,
+            "lobby": True,
         },
         "vigilante_alerta": False,
     }

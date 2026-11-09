@@ -11,9 +11,11 @@
 > [`docs/capturas/`](docs/capturas).
 
 Eres un estudiante que se quedó tarde en la universidad. Son las **20:15** y
-a las **21:00** empieza el toque de queda: si un vigilante te ve después de
-esa hora, te expulsan del campus por esa noche. Completa los 13 encargos de
-aulas y laboratorios y sal por el lobby o la terraza antes de que te atrapen.
+a las **21:00** empieza el toque de queda. Desde las 20:45 el vigilante te
+avisa a gritos («Ya tocará sacarte de la U, viejito»), y a las 21:00 deja su
+ronda y sale a buscarte, incluso dentro de las salas: si te alcanza, te expulsan
+del campus por esa noche. Completa los 13 encargos de aulas y laboratorios y sal
+por el lobby o la terraza antes de que te atrape.
 
 Es un juego de un solo jugador (no cooperativo), estilo mini RPG/sandbox
 visto desde arriba: exploras un mapa fijo (el campus) libremente, recoges

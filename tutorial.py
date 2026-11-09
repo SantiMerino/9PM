@@ -83,7 +83,7 @@ PASOS = {
     'campus': [
         dict(dibujo='bienvenida', titulo='Son las 20:15 en KEY',
              texto='Tienes hasta las 21:00 para resolver 13 encargos y salir por el lobby o la terraza. '
-                   'Después del toque de queda, si un vigilante te ve, te expulsan.'),
+                   'A las 21:00 el vigilante sale a buscarte: si te alcanza, te expulsan.'),
         dict(dibujo='mover', foco=_foco_jugador, titulo='Este eres tú',
              texto='Camina con WASD o las flechas. Pisa una puerta para entrar a esa sala.'),
         dict(dibujo='espacio', foco=pygame.Rect(6, 596, 516, 24), titulo='ESPACIO hace casi todo',

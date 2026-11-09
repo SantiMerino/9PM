@@ -140,6 +140,41 @@ MARGEN_MUNDO = 20
 SEGUNDOS_POR_MINUTO_JUEGO = 12.0
 MINUTOS_DE_GRACIA_TRAS_TOQUE_QUEDA = 15
 
+# Vigilante del campus: avisos antes de las 21:00 y persecución después
+VELOCIDAD_PERSECUCION = 230.0    # a las 21:00 corre más que el jugador (190)
+RADIO_ATRAPE = 34                # a esta distancia te agarra
+SEGUNDOS_RECALCULO_RUTA = 0.4    # cada cuánto recalcula el BFS hacia ti
+MINUTOS_AVISOS_VIGILANTE = 15    # empieza a hablar a las 20:45
+MINUTOS_ULTIMO_AVISO = 7         # desde las 20:53 se pone serio
+SEGUNDOS_ENTRE_DIALOGOS = 8.0
+SEGUNDOS_DIALOGO = 4.5
+SEGUNDOS_GRITO_INTERIOR = 20.0   # dentro de una sala solo se le oye de vez en cuando
+SEGUNDOS_ESCENA_CAPTURA = 2.6
+DIALOGOS_VIGILANTE = {
+    "ronda": (
+        "Ya tocará sacarte de la U, viejito.",
+        "¿Y vos qué hacés aquí tan tarde?",
+        "Ya van a ser las 9, eh...",
+        "Apurate con tus cosas, que ya voy cerrando.",
+        "Esas luces de los labs no se apagan solas.",
+    ),
+    "ultimo_aviso": (
+        "¡Último aviso! A las 9 cierro todo.",
+        "Cinco minutitos y te saco yo mismo.",
+        "Te estoy viendo, viejito...",
+        "Ya tengo las llaves en la mano, ¿eh?",
+        "No me hagás ir a buscarte.",
+    ),
+    "persecucion": (
+        "¡Ahora sí, viejito! ¡Para afuera!",
+        "¡Te dije que a las 9!",
+        "¡Alto ahí!",
+        "¡No corrás, que es peor!",
+    ),
+}
+FRASE_CAPTURA = "¡Te agarré, viejito! Vamos para la salida."
+MOTIVO_CAPTURA = "El vigilante te atrapó después de las 9:00 PM."
+
 # Torre de Laboratorios (nivel 2, por turnos)
 PASILLO = "pasillo"
 POS_PIE_GRADAS = (GRADAS_TRIGGER[0] + GRADAS_TRIGGER[2] // 2, GRADAS_TRIGGER[1] + GRADAS_TRIGGER[3] + 14)
@@ -368,10 +403,96 @@ class Vigilante:
         self.punto_indice = 0
         self.direccion = "abajo"
         self.congelado = False
+        # Persecución (desde las 21:00)
+        self.persiguiendo = False
+        self.retraso = 0.0             # segundos que espera antes de arrancar (al cruzar una puerta)
+        self.ruta_persecucion = []     # puntos (x, y) que le faltan para llegar a ti
+        self._t_ruta = 0.0
 
     @property
     def pos(self):
         return (self.x, self.y)
+
+    # ------------------------------------------------------------------
+    # Persecución: ve directo si te ve; si no, BFS por el grafo del campus.
+    # ------------------------------------------------------------------
+    def empezar_persecucion(self, posicion=None, retraso=0.0):
+        self.persiguiendo = True
+        self.congelado = False
+        if posicion is not None:
+            self.x, self.y = posicion
+        self.retraso = retraso
+        self.ruta_persecucion = []
+        self._t_ruta = 0.0
+
+    @staticmethod
+    def _hay_paso(origen, destino, libre, salto=8):
+        """¿Se puede caminar en línea recta de origen a destino?"""
+        d = distancia(origen, destino)
+        pasos = max(1, int(d // salto))
+        return all(libre(origen[0] + (destino[0] - origen[0]) * i / pasos,
+                         origen[1] + (destino[1] - origen[1]) * i / pasos)
+                   for i in range(pasos + 1))
+
+    def _nodo_visible(self, pos, libre):
+        """Nodo del grafo más cercano al que se llega en línea recta desde pos."""
+        nodos = sorted(self.mapa.posiciones, key=lambda n: distancia(pos, self.mapa.posiciones[n]))
+        return next((n for n in nodos if self._hay_paso(pos, self.mapa.posiciones[n], libre)), nodos[0])
+
+    def _calcular_ruta(self, objetivo, libre):
+        if self._hay_paso(self.pos, objetivo, libre):
+            return [objetivo]
+        origen = self._nodo_visible(self.pos, libre)
+        destino = self._nodo_visible(objetivo, libre)
+        ruta = self.mapa.bfs(origen, destino) or [origen]
+        puntos = [self.mapa.posiciones[n] for n in ruta]
+        # Si ya va camino al segundo nodo, no se devuelve al primero.
+        if len(puntos) >= 2 and distancia(self.pos, puntos[1]) <= distancia(puntos[0], puntos[1]):
+            puntos = puntos[1:]
+        return puntos + [objetivo]
+
+    def _avanzar_hacia(self, destino, paso, libre):
+        d = distancia(self.pos, destino)
+        if d <= paso:
+            self.x, self.y = destino
+            return d
+        ddx, ddy = destino[0] - self.x, destino[1] - self.y
+        if abs(ddx) > abs(ddy):
+            self.direccion = "derecha" if ddx > 0 else "izquierda"
+        else:
+            self.direccion = "abajo" if ddy > 0 else "arriba"
+        nx, ny = self.x + ddx / d * paso, self.y + ddy / d * paso
+        if libre(nx, ny):
+            self.x, self.y = nx, ny
+        elif libre(nx, self.y):        # se desliza por la pared o el mueble
+            self.x = nx
+        elif libre(self.x, ny):
+            self.y = ny
+        return paso
+
+    def perseguir(self, dt, objetivo, libre, en_pasillo=True):
+        """Corre hacia `objetivo`. `libre(x, y)` dice dónde se puede pisar."""
+        if self.retraso > 0:
+            self.retraso = max(0.0, self.retraso - dt)
+            return
+        paso = VELOCIDAD_PERSECUCION * dt
+        if not en_pasillo:
+            # Una sala es un solo cuarto: va directo, esquivando muebles.
+            self._avanzar_hacia(objetivo, paso, libre)
+            return
+        self._t_ruta -= dt
+        if self._t_ruta <= 0 or not self.ruta_persecucion:
+            self._t_ruta = SEGUNDOS_RECALCULO_RUTA
+            self.ruta_persecucion = self._calcular_ruta(objetivo, libre)
+        else:
+            self.ruta_persecucion[-1] = objetivo
+        while paso > 1e-6 and self.ruta_persecucion:
+            usado = self._avanzar_hacia(self.ruta_persecucion[0], paso, libre)
+            if self.pos == tuple(self.ruta_persecucion[0]):
+                self.ruta_persecucion.pop(0)
+            paso -= usado
+            if usado <= 1e-6:
+                break
 
     def _elegir_nueva_ruta(self):
         objetivo = self.ciclo[self.indice_objetivo]
@@ -446,6 +567,14 @@ class Partida:
         self.terminado = False
         self.gano = False
         self.motivo_fin = ""
+        # Diálogos del vigilante (burbuja sobre su cabeza) y escena de captura
+        self.azar_dialogos = random.Random(semilla)
+        self.dialogo_vigilante = ""
+        self.t_dialogo = 0.0
+        self._t_proximo_dialogo = 0.0
+        self._t_grito_interior = 0.0
+        self.capturado = False
+        self.t_captura = 0.0
 
         # Torre de Laboratorios: se genera RECURSIVAMENTE al iniciar la partida
         # y sus eventos del mapa se encolan desde ya (FIFO).
@@ -707,6 +836,10 @@ class Partida:
         self.vigilante.congelado = True
         m = next(m for m in self.mision.hijas if m.ubicacion == nombre)
         self._agregar_toast(f"{data['etiqueta']}: {m.objetivo_actual}.")
+        if self.vigilante.persiguiendo:
+            # Después de las 21:00 te sigue: entra por la misma puerta.
+            self.vigilante.empezar_persecucion(sala["spawn"], retraso=1.2)
+            self._agregar_toast("¡El vigilante entra detrás de ti!")
 
     def _aplicar_salir(self, registrar=True):
         if not self._puerta_origen:
@@ -729,6 +862,9 @@ class Partida:
         self.vigilante.congelado = False
         self._cooldown_puerta = 0.9
         self._agregar_toast("Volviste al pasillo.")
+        if self.vigilante.persiguiendo:
+            self.vigilante.empezar_persecucion(retorno, retraso=1.0)
+            self._agregar_toast("¡El vigilante sale detrás de ti!")
 
     def entrar_interior(self, puerta_id):
         if self.en_transicion:
@@ -1333,6 +1469,15 @@ class Partida:
         if self.terminado:
             return
 
+        if self.capturado:
+            # Escena de captura: todo se congela unos segundos antes del fin.
+            self.tiempo_animacion += dt
+            self.t_dialogo = max(0.0, self.t_dialogo - dt)
+            self.t_captura -= dt
+            if self.t_captura <= 0:
+                self._terminar(False, MOTIVO_CAPTURA)
+            return
+
         self.tiempo_animacion += dt
         self._actualizar_transicion(dt)
 
@@ -1391,7 +1536,10 @@ class Partida:
                     self.salir_interior()
                     return
 
-        self.vigilante.actualizar(dt)
+        if self.vigilante.persiguiendo:
+            self.vigilante.perseguir(dt, self.jugador.pos, puede, en_pasillo=self.ubicacion == "pasillo")
+        else:
+            self.vigilante.actualizar(dt)
 
         self._tiempo_acumulado += tiempo_reloj
         while self._tiempo_acumulado >= SEGUNDOS_POR_MINUTO_JUEGO and not self.terminado:
@@ -1404,14 +1552,84 @@ class Partida:
 
         if self.terminado:
             return
-        # Vigilante solo detecta en overworld
-        if self.ubicacion == "pasillo" and self.estado_mundo["toque_queda_activo"]:
-            if distancia(self.jugador.pos, self.vigilante.pos) < RADIO_DETECCION:
-                self._terminar(False, "Un vigilante te vio después del toque de queda.")
-            elif self.estado_mundo["hora_actual_min"] >= self.hora_limite:
-                self._terminar(False, "Se acabó la noche: te quedaste encerrado en el campus.")
+        # A las 21:00 el vigilante deja la ronda y sale a buscarte.
+        if self.estado_mundo["toque_queda_activo"] and not self.vigilante.persiguiendo:
+            self._empezar_persecucion()
+        self._actualizar_dialogos(dt)
+        if (self.vigilante.persiguiendo and self.vigilante.retraso == 0
+                and distancia(self.jugador.pos, self.vigilante.pos) < RADIO_ATRAPE):
+            self._atrapar()
         elif self.estado_mundo["hora_actual_min"] >= self.hora_limite:
             self._terminar(False, "Se acabó la noche: te quedaste encerrado en el campus.")
+
+    # ------------------------------------------------------------------
+    # Vigilante del campus: avisos, persecución y captura
+    # ------------------------------------------------------------------
+    def _empezar_persecucion(self):
+        if self.ubicacion == "interior" and self.interior_data:
+            self.vigilante.empezar_persecucion(self.interior_data["spawn"], retraso=1.5)
+            self._agregar_toast(f"¡El vigilante entró a {self.interior_data.get('titulo', 'la sala')}!")
+        else:
+            self.vigilante.empezar_persecucion(retraso=0.6)
+            self._agregar_toast("¡Son las 9! El vigilante viene por ti.")
+        self._t_proximo_dialogo = 0.0   # grita en cuanto arranca
+
+    def _fase_dialogo(self):
+        if self.vigilante.persiguiendo:
+            return "persecucion"
+        faltan = self.estado_mundo["hora_toque_queda_min"] - self.estado_mundo["hora_actual_min"]
+        if faltan <= MINUTOS_ULTIMO_AVISO:
+            return "ultimo_aviso"
+        if faltan <= MINUTOS_AVISOS_VIGILANTE:
+            return "ronda"
+        return None
+
+    def _actualizar_dialogos(self, dt):
+        self.t_dialogo = max(0.0, self.t_dialogo - dt)
+        self._t_grito_interior = max(0.0, self._t_grito_interior - dt)
+        fase = self._fase_dialogo()
+        if fase is None:
+            return
+        self._t_proximo_dialogo -= dt
+        if self._t_proximo_dialogo > 0:
+            return
+        self._t_proximo_dialogo = SEGUNDOS_ENTRE_DIALOGOS * (0.6 if fase == "persecucion" else 1.0)
+        opciones = [f for f in DIALOGOS_VIGILANTE[fase] if f != self.dialogo_vigilante]
+        self._decir(self.azar_dialogos.choice(opciones))
+
+    def _decir(self, frase, duracion=SEGUNDOS_DIALOGO):
+        self.dialogo_vigilante = frase
+        self.t_dialogo = duracion
+        if self.vigilante_en_pantalla:
+            self._log(f"Vigilante: «{frase}»")
+        elif self._t_grito_interior <= 0:
+            # No lo ves, pero se le oye (de vez en cuando, para no llenar la pantalla).
+            self._t_grito_interior = SEGUNDOS_GRITO_INTERIOR
+            donde = "en el pasillo" if self.ubicacion == "interior" else "a lo lejos"
+            self._agregar_toast(f"Se oye al vigilante {donde}: «{frase}»")
+
+    @property
+    def vigilante_visible(self):
+        """El vigilante se dibuja en el pasillo, o en una sala si te persigue."""
+        return self.ubicacion == "pasillo" or (self.ubicacion == "interior" and self.vigilante.persiguiendo)
+
+    @property
+    def vigilante_en_pantalla(self):
+        if not self.vigilante_visible:
+            return False
+        cam_x, cam_y = calcular_camara(self.jugador.pos, *self.mundo_actual_size())
+        x, y = self.vigilante.x - cam_x, self.vigilante.y - cam_y
+        return -40 <= x <= ANCHO + 40 and 0 <= y <= ALTO + 100
+
+    def _atrapar(self):
+        self.capturado = True
+        self.t_captura = SEGUNDOS_ESCENA_CAPTURA
+        dx = self.jugador.x - self.vigilante.x
+        self.vigilante.direccion = "derecha" if dx > 0 else "izquierda"
+        self.jugador.direccion = "izquierda" if dx > 0 else "derecha"
+        self.jugador.moviendo = False
+        self._decir(FRASE_CAPTURA, SEGUNDOS_ESCENA_CAPTURA + 1)
+        self._log("¡El vigilante te atrapó!")
 
     def tesoros_en_mochila(self):
         """Objetos perdidos de la Torre que llevas en el inventario."""
@@ -1476,6 +1694,72 @@ def dibujar_vigilante(pantalla, vigilante, activo, glow_peligro, camara):
         texto(pantalla,"!",(px,py-72),(244,134,102),20,True)
 
 
+def _partir_lineas(frase, letra, ancho_max):
+    lineas, actual = [], ""
+    for palabra in frase.split():
+        prueba = f"{actual} {palabra}".strip()
+        if actual and letra.size(prueba)[0] > ancho_max:
+            lineas.append(actual)
+            actual = palabra
+        else:
+            actual = prueba
+    return lineas + ([actual] if actual else [])
+
+
+def dibujar_burbuja(pantalla, frase, ancla, color_borde=(28, 43, 57)):
+    """Globo de diálogo cuya punta toca `ancla` (encima de la cabeza)."""
+    letra = fuente(14)
+    lineas = _partir_lineas(frase, letra, 240)
+    alto_linea = letra.get_linesize()
+    ancho = max(letra.size(l)[0] for l in lineas) + 20
+    alto = alto_linea * len(lineas) + 14
+    x = int(min(max(8, ancla[0] - ancho // 2), ANCHO - ancho - 8))
+    y = int(max(8, ancla[1] - alto - 10))
+    caja_rect = pygame.Rect(x, y, ancho, alto)
+    punta_x = int(min(max(caja_rect.left + 12, ancla[0]), caja_rect.right - 12))
+    pygame.draw.rect(pantalla, (12, 24, 34), caja_rect.move(0, 3), border_radius=8)
+    pygame.draw.rect(pantalla, CREAM, caja_rect, border_radius=8)
+    pygame.draw.rect(pantalla, color_borde, caja_rect, 2, border_radius=8)
+    pygame.draw.polygon(pantalla, CREAM, [(punta_x - 7, caja_rect.bottom - 2),
+                                          (punta_x + 7, caja_rect.bottom - 2),
+                                          (punta_x, caja_rect.bottom + 9)])
+    pygame.draw.lines(pantalla, color_borde, False, [(punta_x - 7, caja_rect.bottom - 1),
+                                                     (punta_x, caja_rect.bottom + 9),
+                                                     (punta_x + 7, caja_rect.bottom - 1)], 2)
+    for i, linea in enumerate(lineas):
+        im = letra.render(linea, False, (28, 43, 57))
+        pantalla.blit(im, (x + 10, y + 7 + i * alto_linea))
+
+
+def dibujar_dialogo_vigilante(pantalla, partida, camara):
+    if partida.t_dialogo <= 0 or not partida.dialogo_vigilante or not partida.vigilante_en_pantalla:
+        return
+    px, py = partida.vigilante.x - camara[0], partida.vigilante.y - camara[1]
+    borde = COLOR_PELIGRO if partida.vigilante.persiguiendo else (28, 43, 57)
+    dibujar_burbuja(pantalla, partida.dialogo_vigilante, (px, py - 84), borde)
+
+
+def dibujar_captura(pantalla, partida):
+    """Escena de captura: viñeta roja que late y el cartel ¡ATRAPADO!"""
+    if not partida.capturado:
+        return
+    avance = 1 - max(0.0, partida.t_captura) / SEGUNDOS_ESCENA_CAPTURA
+    latido = 0.5 + 0.5 * math.sin(partida.tiempo_animacion * 9)
+    capa = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    capa.fill((120, 10, 20, int(40 + 50 * avance)))
+    for i in range(6):
+        grosor = 18 + i * 14
+        alfa = int((70 + 60 * latido) * (1 - i / 6))
+        pygame.draw.rect(capa, (200, 30, 40, alfa), capa.get_rect(), grosor)
+    pantalla.blit(capa, (0, 0))
+    escala = 1 + 0.08 * latido
+    letrero = fuente(int(46 * escala)).render("¡ATRAPADO!", False, (255, 236, 214))
+    sombra = fuente(int(46 * escala)).render("¡ATRAPADO!", False, (60, 6, 12))
+    centro = (ANCHO // 2, 120)
+    pantalla.blit(sombra, sombra.get_rect(center=(centro[0] + 3, centro[1] + 4)))
+    pantalla.blit(letrero, letrero.get_rect(center=centro))
+
+
 def dibujar_transicion(pantalla, partida, fuentes):
     """Overlay de fade + tarjeta de título (después del mundo, bajo o sobre HUD)."""
     fade = partida._trans_fade
@@ -1523,6 +1807,13 @@ def dibujar_fin(pantalla, fuentes, partida):
     pantalla.blit(detalle, (ANCHO // 2 - detalle.get_width() // 2, 296))
     aviso = fuentes["normal"].render("ENTER para volver al menú", True, COLOR_TEXTO)
     pantalla.blit(aviso, (ANCHO // 2 - aviso.get_width() // 2, 340))
+    if partida.capturado:
+        # El vigilante te lleva de la oreja hacia la salida.
+        guardia = sprite_personaje("vigilante", "derecha", 0, 4)
+        alumno = sprite_estudiante(partida.jugador.personaje, partida.jugador.carrera, "izquierda", 0, 4)
+        pantalla.blit(guardia, guardia.get_rect(midbottom=(ANCHO // 2 - 44, 580)))
+        pantalla.blit(alumno, alumno.get_rect(midbottom=(ANCHO // 2 + 44, 580)))
+        dibujar_burbuja(pantalla, FRASE_CAPTURA, (ANCHO // 2 - 44, 456), COLOR_PELIGRO)
 
 
 def manejar_entrada_torre(partida, ev):
@@ -1806,10 +2097,13 @@ def main():
                     pantalla, partida.interior_data, partida.jugador.pos,
                     partida.tiempo_animacion, camara,
                 )
+                if partida.vigilante.persiguiendo:
+                    dibujar_vigilante(pantalla, partida.vigilante, True, glow_peligro, camara)
                 dibujar_jugador(
                     pantalla, partida.jugador, glow_linterna, camara,
                     sprites_por_personaje, partida.tiempo_animacion,
                 )
+                dibujar_dialogo_vigilante(pantalla, partida, camara)
             else:
                 dibujar_overworld(pantalla, camara, fuentes["chica"])
                 dibujar_objetos_mundo(
@@ -1829,12 +2123,14 @@ def main():
                     pantalla, partida.jugador, glow_linterna, camara,
                     sprites_por_personaje, partida.tiempo_animacion,
                 )
+                dibujar_dialogo_vigilante(pantalla, partida, camara)
 
             if partida.ubicacion != "torre":
                 dibujar_efecto_habilidad(pantalla, partida, camara)
             dibujar_transicion(pantalla, partida, fuentes)
             if partida.ubicacion != "torre":
                 dibujar_hud(pantalla, partida, fuentes)
+            dibujar_captura(pantalla, partida)
             panel_inventario.dibujar(pantalla, partida.inventario)
             boton_inventario.dibujar(
                 pantalla,

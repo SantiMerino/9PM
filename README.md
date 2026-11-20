@@ -133,6 +133,177 @@ partida (no se sube a git: es un archivo generado).
 
 ---
 
+## Checkpoint 3: grafo, árbol de misiones y estado del mundo
+
+### Cómo ejecutar y qué incluye el juego
+
+Instala las dependencias con `pip install -r requirements.txt` y ejecuta
+`python main.py`. Las pruebas se ejecutan con
+`python -m unittest discover -s tests -v`.
+
+Hasta el Checkpoint 2, 9PM incluye:
+
+- Inventario de objetos, encargos del campus y estaciones interactivas.
+- Historial de acciones con pila y opción para deshacer.
+- Eventos y turnos con colas en la Torre de Laboratorios.
+- Torre generada recursivamente, tutorial, mapa, bitácora y vigilante.
+- Grafo del campus con rutas BFS y patrulla DFS.
+
+El Checkpoint 3 extiende el grafo para modelar puertas cerradas, convierte los
+encargos en un árbol de dependencias y amplía el estado del mundo. La integración
+de estas piezas y su evidencia se actualizan al entrar los PR de cada integrante.
+
+### Cómo trabajan juntas las estructuras
+
+```text
+Árbol de misiones                 Diccionario del mundo              Grafo
+completar un encargo ──efecto──▶ cambia puertas/luces ──bloqueadas──▶ BFS
+       │                              │                                │
+       └── habilita hijas             └── 21:00 cierra lobby            └── ruta
+                                                                      alternativa
+                                                            ┌────────────┴────────┐
+                                                          terraza             sin salida
+```
+
+Ejemplo previsto: completar **Cierre de caja** abre la conexión a la terraza;
+al llegar a las 21:00 el toque de queda cierra la puerta del lobby. El BFS
+recibe las puertas cerradas y calcula una ruta por la terraza. Si esa conexión
+sigue cerrada, el juego informa que no hay salida disponible. El cambio de la
+hora y la activación del toque de queda no se revierten al deshacer una misión.
+
+### Grafo del campus y de la Torre
+
+El campus tiene 16 nodos y 17 conexiones no dirigidas. La lista de adyacencia
+guarda solo los vecinos de cada lugar, adecuada porque cada sala conecta con
+pocos pasillos; una matriz de adyacencia ocuparía O(V²) espacio. Las puertas
+`terraza — terraza_n` y `lobby_frente — lobby` pueden cerrarse durante la
+partida y se excluyen de BFS en ambos sentidos.
+
+```text
+                         terraza_n
+                             |
+oeste_n — terraza — norte — este_c — este_s — sur — lobby_acceso — lobby_frente — lobby
+   |        |                       |       |                         puerta
+   |        |                       |       |
+oeste_m — jardin_o — jardin_c ————┘       oeste_s — aulas_sur
+   |                    |                    |
+aulas_norte           este_c              sur
+```
+
+Conexiones del modelo (los IDs son los del juego):
+
+```text
+jardin_c: jardin_o, este_c
+jardin_o: jardin_c, oeste_n, oeste_m
+oeste_n: jardin_o, terraza
+terraza: oeste_n, norte, terraza_n
+terraza_n: terraza
+norte: terraza, este_c
+este_c: jardin_c, norte, este_s
+este_s: este_c, sur
+sur: este_s, oeste_s, lobby_acceso
+oeste_s: sur, oeste_m, aulas_sur
+oeste_m: oeste_s, jardin_o, aulas_norte
+aulas_norte: oeste_m
+aulas_sur: oeste_s
+lobby_acceso: sur, lobby_frente
+lobby_frente: lobby_acceso, lobby
+lobby: lobby_frente
+```
+
+El mismo `Grafo` se reutiliza para el campus y para la Torre. En el campus,
+BFS encuentra la ruta más corta del estudiante o del vigilante; DFS permite
+recorrer los pasillos para formar la ronda. En la Torre, aristas de atajo
+añaden rutas alternativas entre salas del mismo nivel.
+
+| Operación del grafo | Complejidad |
+|---|---:|
+| Agregar arista / consultar vecinos | O(1) promedio |
+| BFS (`bfs_ruta`), DFS, alcanzables y componentes | O(V + E) |
+
+### Árbol de misiones
+
+Un árbol expresa las dependencias: cada misión depende como máximo de una
+misión anterior, por lo que no hay ciclos. Completar una misión habilita sus
+hijas. El recorrido en preorden alimenta esta bitácora; el recorrido por
+niveles muestra las etapas y el postorden suma recompensas de las ramas.
+Cada recorrido visita los nodos una vez y cuesta O(n).
+
+```text
+Préstamo de medianoche · Biblioteca
+├── Una última firma · Reuniones
+│   ├── Cálculo pendiente · R102
+│   └── Última exposición · R105
+│       └── Bitácora de física · R104
+├── Entrega digital · R101
+│   ├── Puesta en marcha · Lab Siemens
+│   │   └── Prototipo listo · Lab Kite
+│   └── Redes conectadas · R103
+│       └── Respaldo completo · Lab Click
+└── Cierre de caja · Cafetería
+    ├── Todo en su lugar · Bodega
+    │   └── Señal estable · Lab Spark
+    └── Salida por la terraza
+```
+
+Este es el árbol de 14 nodos de `arboles.py`, que sirve como referencia para
+las dependencias. La integración del juego debe alinear sus ubicaciones y sus
+13 encargos con esa estructura antes de publicar la evidencia final.
+
+### Diccionario del estado del mundo
+
+`estado_mundo.py` reúne la hora, el toque de queda, las luces, las puertas,
+el estado de las misiones y la alerta del vigilante. Se consulta por claves
+estables: texto para salas y tuplas para conexiones. Las tuplas son
+inmutables y hashables, por eso sirven para identificar una puerta sin
+ambigüedad.
+
+La consulta segura usa `.get()`; insertar, actualizar y eliminar cambian una
+sección del estado. `puertas_cerradas` entrega aristas al BFS,
+`salas_iluminadas` filtra las salas visibles y `resumen` prepara conteos para
+el HUD. Estas operaciones cuestan O(1) promedio por clave; buscar una clave
+en una lista de pares exigiría O(n).
+
+### Decisión: estado del mundo al deshacer
+
+Al deshacer una acción que completó una misión, se revierten sus efectos en el
+diccionario y la misión vuelve a su estado anterior. La hora no retrocede y el
+toque de queda sigue activo si ya comenzó: el jugador puede corregir una acción,
+pero no borrar el tiempo que pasó ni reabrir automáticamente el lobby.
+
+### Casos límite
+
+Los menús y las estructuras deben manejar sin cerrar el juego: nodo, sala o
+misión inexistente; ruta imposible por puertas cerradas; misión bloqueada por
+su dependencia; misión ya completada; y entradas de menú con texto, cero,
+número negativo o valor fuera de rango. Cada caso debe mostrar un mensaje
+entendible y conservar el estado de la partida. Los mensajes y resultados
+finales se documentarán aquí junto a las pruebas de integración.
+
+### Evidencia de ejecución
+
+La evidencia del Checkpoint 3 se agregará después de integrar las ramas de
+grafos, misiones y estado del mundo. Debe incluir capturas de la bitácora en
+árbol, una ruta alternativa, una misión bloqueada y una opción inválida, además
+de la salida de consola de las demos y del conjunto completo de pruebas.
+Las capturas de Checkpoint 2 ya disponibles están en [`docs/capturas/`](docs/capturas).
+
+### Aporte de cada integrante (Checkpoint 3)
+
+La tabla final se completará con los cambios integrados y se verificará contra
+`git shortlog -sn` y `git log --author=...`, como pide la rúbrica. El reparto
+previsto es:
+
+| Parte | Archivos principales | Integrante |
+|---|---|---|
+| Grafo genérico, BFS/DFS y atajos de la Torre | `grafo.py`, `mapa.py`, pruebas | Frederick Argueta |
+| Árbol de misiones y recorridos | `misiones.py`, pruebas | Juan Diego Cornejo |
+| Estado del mundo y efectos reversibles | `estado_mundo.py`, pruebas | Ricardo Vides |
+| Integración y casos límite | `main.py`, pruebas de integración | Santiago Merino |
+| Bitácora, README y evidencia | `hud_campus.py`, `README.md`, `docs/` | Nathaly Mena |
+
+---
+
 ## Checkpoint 2: historial, eventos y mazmorra
 
 ### Cómo trabajan juntas las tres estructuras

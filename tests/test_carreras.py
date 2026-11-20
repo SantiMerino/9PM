@@ -37,7 +37,7 @@ class CarreraTests(unittest.TestCase):
                     p=Partida(crear_mapa_universidad(),{},personaje=inicio.personaje,carrera=inicio.carrera.id)
                     self.assertEqual((p.jugador.carrera,p.jugador.personaje),(carrera.id,avatar))
                     self.assertEqual(p.habilidad.perfil.id,carrera.id)
-                    self.assertEqual(len(p.mision.hijas),13)
+                    self.assertEqual(len(p.encargos),13)
                     self.assertEqual(sprite_estudiante(avatar,carrera.id).get_size(),(48,60))
 
     def test_cambiar_carrera_conserva_avatar(self):
@@ -64,7 +64,7 @@ class CarreraTests(unittest.TestCase):
         self.assertFalse(p.habilidad.usar(p))
         p.jugador.x,p.jugador.y=(500,196)
         self.assertTrue(p.habilidad.usar(p))
-        self.assertTrue(next(m for m in p.mision.hijas if m.ubicacion=='r101').completada)
+        self.assertTrue(p.encargo_en('r101').completada)
         self.assertFalse(p.habilidad.usar(p))
         self.assertGreater(p.habilidad.recarga,0)
 
@@ -124,7 +124,7 @@ class CarreraTests(unittest.TestCase):
         for carrera in CARRERAS:
             p=self.partida(carrera.id)
             p.inventario.agregar(crear_objeto('libro')); p.inventario.agregar(crear_objeto('usb'))
-            for m in p.mision.hijas:
+            for m in p.encargos:
                 p._aplicar_entrar(m.ubicacion); sala=p.interior_data
                 reach=alcanzables(sala['spawn'],lambda x,y:not colision_interior(sala,x,y),sala['ancho'],sala['alto'])
                 for paso in range(len(m.pasos)):
@@ -155,6 +155,6 @@ class CarreraTests(unittest.TestCase):
         self.assertEqual(instancias[0].jugador.carrera,'industrial')
         self.assertGreater(instancias[0].habilidad.recarga,0)
         self.assertEqual(instancias[1].habilidad.recarga,0)
-        self.assertFalse(any(m.completada for m in instancias[1].mision.hijas))
+        self.assertFalse(any(m.completada for m in instancias[1].encargos))
 
 if __name__=='__main__': unittest.main()

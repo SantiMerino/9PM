@@ -236,8 +236,8 @@ def _encabezado(s, p):
         texto(s, desc[0] + ('…' if len(desc) > 1 else ''), (96, 38), TENUE, 12)
     color = ROJO if p.estado_mundo['toque_queda_activo'] else CREAM
     texto(s, formatear_hora(p.estado_mundo['hora_actual_min']), (560, 9), color, 24)
-    hechas = sum(m.completada for m in p.mision.hijas)
-    texto(s, f'{hechas:02}/{len(p.mision.hijas)} ENCARGOS · {p.tesoros_en_mochila()} OBJ. PERDIDOS', (560, 39), TEAL, 12)
+    hechas = sum(m.completada for m in p.encargos)
+    texto(s, f'{hechas:02}/{len(p.encargos)} ENCARGOS · {p.tesoros_en_mochila()} OBJ. PERDIDOS', (560, 39), TEAL, 12)
 
 
 def _escena(s, p, tiempo, mouse):

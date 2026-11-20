@@ -25,8 +25,8 @@ class HabilidadCarrera:
 
     def _objetivo(self,p,compatibles):
         if p.ubicacion!='interior': return None
-        m=next(m for m in p.mision.hijas if m.ubicacion==p.sala_interior)
-        if m.completada or (p.sala_interior,m.paso) not in compatibles: return None
+        m=p.encargo_en(p.sala_interior)
+        if m is None or m.completada or (p.sala_interior,m.paso) not in compatibles: return None
         return next((i for i in p.interior_interactivos if i.get('paso')==m.paso),None)
 
     def usar(self,p):

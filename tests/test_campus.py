@@ -114,7 +114,7 @@ class CampusTests(unittest.TestCase):
             p._aplicar_entrar(nombre)
             sala=p.interior_data
             reach=alcanzables(sala['spawn'],lambda x,y:not colision_interior(sala,x,y),sala['ancho'],sala['alto'])
-            m=next(m for m in p.mision.hijas if m.ubicacion==nombre)
+            m=p.encargo_en(nombre)
             for paso in range(len(m.pasos)):
                 item=next(i for i in p.interior_interactivos if i['paso']==paso)
                 spot=next(xy for xy in reach if interactivo_cercano(sala,*xy) is item)

@@ -113,6 +113,11 @@ from estado_mundo import (
     revertir_cambios,
 )
 from grafo import grafo_desde_mazmorra
+from batalla import Batalla
+from dificultad import obtener_dificultad
+from logros import RegistroLogros
+from sonido import SinSonido, Sonido
+from ui_batalla import EstadoVisual, dibujar_batalla, dibujar_logro, opcion_en
 from ui_inventario import BotonInventario, PanelInventario, crear_objeto, dibujar_arte, obtener_arte, reiniciar_fuentes, es_tesoro
 from ui_torre import (
     dibujar_torre,
@@ -194,7 +199,6 @@ MOTIVO_CAPTURA = "El vigilante te atrapó después de las 9:00 PM."
 PASILLO = "pasillo"
 POS_PIE_GRADAS = (GRADAS_TRIGGER[0] + GRADAS_TRIGGER[2] // 2, GRADAS_TRIGGER[1] + GRADAS_TRIGGER[3] + 14)
 MINUTOS_POR_RONDA_TORRE = 1      # cada ronda de turnos gasta un minuto del reloj
-MINUTOS_SERMON = 3               # lo que cuesta que el vigilante te encuentre antes de las 21:00
 TURNOS_ALERTA_ROBOT = 2          # turnos que el vigilante te persigue tras el aviso del robot
 TURNOS_REPORTE = 3               # turnos que el vigilante se queda escribiendo tras sermonearte
 PUNTOS_POR_TESORO = 150
@@ -418,6 +422,8 @@ class Vigilante:
         self.ruta_actual = []
         self.punto_indice = 0
         self.direccion = "abajo"
+        self.vel_ronda = VELOCIDAD_VIGILANTE
+        self.vel_persecucion = VELOCIDAD_PERSECUCION
         self.congelado = False
         # Persecución (desde las 21:00)
         self.persiguiendo = False
@@ -491,7 +497,7 @@ class Vigilante:
         if self.retraso > 0:
             self.retraso = max(0.0, self.retraso - dt)
             return
-        paso = VELOCIDAD_PERSECUCION * dt
+        paso = self.vel_persecucion * dt
         if not en_pasillo:
             # Una sala es un solo cuarto: va directo, esquivando muebles.
             self._avanzar_hacia(objetivo, paso, libre)
@@ -530,7 +536,7 @@ class Vigilante:
                 return
         destino = self.mapa.posiciones[self.ruta_actual[self.punto_indice]]
         d = distancia((self.x, self.y), destino)
-        paso = VELOCIDAD_VIGILANTE * dt
+        paso = self.vel_ronda * dt
         if d <= paso:
             self.x, self.y = destino
             self.sala_actual = self.ruta_actual[self.punto_indice]
@@ -559,8 +565,13 @@ class Toast:
 # --------------------------------------------------------------------------
 class Partida:
     def __init__(self, mapa, fuentes, personaje="universitario", carrera="computacion",
-                 semilla=None, eco_consola=False):
+                 semilla=None, eco_consola=False, dificultad="normal", sonido=None):
         self.mapa = mapa
+        self.dificultad = obtener_dificultad(dificultad)
+        self.sonido = sonido if sonido is not None else SinSonido()
+        self.logros = RegistroLogros()
+        self.batalla = None            # batalla de argumentos en curso (Torre)
+        self.visual_batalla = None
         self.fuentes = fuentes
         self.azar = random.Random(semilla)
         self.eco_consola = eco_consola
@@ -570,6 +581,8 @@ class Partida:
         self.jugador = Jugador(SPAWN_LOBBY, personaje=personaje, carrera=carrera)
         self.habilidad = HabilidadCarrera(carrera)
         self.vigilante = Vigilante(mapa, "jardin_c")
+        self.vigilante.vel_ronda = self.dificultad["vel_vigilante"]
+        self.vigilante.vel_persecucion = self.dificultad["vel_persecucion"]
         self.inventario = Inventario()
         self.historial = []        # PILA de acciones (historial.py)
         self.eventos = ColaEventos()
@@ -695,7 +708,126 @@ class Partida:
         nuevas = [h.titulo for h in mision.hijas if h.desbloqueada() and not h.completada]
         if nuevas:
             self._agregar_toast("Desbloqueaste: " + ", ".join(nuevas) + ".")
+        self._revisar_logros_encargo(mision)
         return cambios
+
+    def _revisar_logros_encargo(self, mision):
+        """Insignia del encargo y logros por hitos del árbol de misiones."""
+        self.logros.insignia_encargo(mision)
+        if self.encargos_hechos() == 1:
+            self.logros.otorgar("primer_encargo")
+        # Rama completa: la misión de nivel 1 de esta rama y todo lo que cuelga de ella.
+        rama = mision
+        while rama.padre is not None and rama.padre is not self.mision:
+            rama = rama.padre
+        if rama.padre is self.mision and rama.todas_completas():
+            self.logros.otorgar(f"rama:{rama.ubicacion}", titulo=f"Rama completa: {rama.titulo}",
+                                texto="Terminaste toda una rama del árbol de misiones.",
+                                puntos=75, icono="arbol")
+        if self.encargos_completos():
+            self.logros.otorgar("todos_encargos")
+
+    def _revocar_logros_encargo(self, mision):
+        """Al deshacer un encargo se quitan los logros que ya no se cumplen (y sus puntos)."""
+        self.logros.revocar(f"encargo:{mision.ubicacion}")
+        if self.encargos_hechos() == 0:
+            self.logros.revocar("primer_encargo")
+        if not self.encargos_completos():
+            self.logros.revocar("todos_encargos")
+        for rama in self.mision.hijas:
+            if not rama.todas_completas():
+                self.logros.revocar(f"rama:{rama.ubicacion}")
+
+    # ------------------------------------------------------------------
+    # Batalla de argumentos (Torre)
+    # ------------------------------------------------------------------
+    def iniciar_batalla(self):
+        if self.batalla is not None:
+            return self.batalla
+        self.batalla = Batalla(
+            carrera=self.jugador.carrera,
+            inventario=[o["nombre"] for o in self.inventario.objetos],
+            dificultad=self.dificultad["id"],
+            toque_queda=self.estado_mundo["toque_queda_activo"],
+            sala=self.sala_torre or "la Torre",
+            semilla=self.azar.random(),
+        )
+        self.visual_batalla = EstadoVisual()
+        self._log("  ¡El vigilante te encontró! Empieza la discusión.")
+        return self.batalla
+
+    def batalla_confirmar(self):
+        """ENTER/clic en la batalla: completa el texto, avanza o confirma la opción."""
+        b, v = self.batalla, self.visual_batalla
+        if b is None:
+            return
+        if b.fase == "elegir":
+            b.elegir(v.seleccion)
+            v.seleccion = min(v.seleccion, 3)
+        elif not v.texto_completo(b):
+            v.completar_texto(b)
+        else:
+            b.continuar()
+        if b.terminada:
+            self.terminar_batalla()
+
+    def batalla_elegir(self, indice):
+        b = self.batalla
+        if b is None or b.fase != "elegir":
+            return False
+        self.visual_batalla.seleccion = indice
+        hecho = b.elegir(indice)
+        if b.terminada:
+            self.terminar_batalla()
+        return hecho
+
+    def batalla_mover(self, dx, dy):
+        v = self.visual_batalla
+        if self.batalla is None or self.batalla.fase != "elegir":
+            return
+        if v.seleccion == 4:
+            v.seleccion = 2 if dy < 0 else 4
+            return
+        col, fila = v.seleccion % 2, v.seleccion // 2
+        col = max(0, min(1, col + dx))
+        fila = fila + dy
+        v.seleccion = 4 if fila > 1 else max(0, fila) * 2 + col
+
+    def terminar_batalla(self):
+        b = self.batalla
+        self.batalla, self.visual_batalla = None, None
+        if b is None:
+            return
+        if b.resultado == "ganaste":
+            self.sonido.efecto("victoria")
+            self.logros.otorgar("labia_de_oro")
+            if b.impecable:
+                self.logros.otorgar("impecable")
+            self._log("  Ganaste la discusión: el vigilante vuelve a su reporte sin quitarte tiempo.")
+            self.alerta_vigilante = 0
+            self.pausa_vigilante = TURNOS_REPORTE
+        elif b.resultado == "huiste":
+            self.logros.otorgar("escapista")
+            antes = self.sala_torre
+            opciones = sorted(self.grafo_torre.vecinos(antes) - {self.posiciones_torre[VIGILANTE]})
+            if opciones:
+                self.sala_torre = self.azar.choice(opciones)
+                self.salas_visitadas.add(self.sala_torre)
+                self._registrar("mover", f"{antes} → {self.sala_torre} (huyendo)",
+                                desde=antes, hacia=self.sala_torre)
+            self._log(f"  Escapas hacia {self.sala_torre}. El vigilante te sigue el rastro.")
+            self.alerta_vigilante = max(self.alerta_vigilante, 3)
+            self.pausa_vigilante = 1
+        else:
+            self.sonido.efecto("derrota")
+            if b.toque_queda or self.estado_mundo["toque_queda_activo"]:
+                self._terminar(False, "Perdiste la discusión con el vigilante después del toque de queda.")
+                return
+            minutos = self.dificultad["minutos_sermon"]
+            self._log(f"  Perdiste la discusión: te sermonea {minutos} minutos y vuelve a su reporte.")
+            self.alerta_vigilante = 0
+            self.pausa_vigilante = TURNOS_REPORTE
+            self._avanzar_minutos(minutos)
 
     def puerta_de_salida(self, salida_id):
         """Puerta del diccionario que controla cada salida del campus."""
@@ -872,6 +1004,7 @@ class Partida:
             mision.completada = False
             # Deshacer revierte los efectos en el mundo; la hora y el toque de queda no.
             revertir_cambios(self.estado_mundo, accion.get("cambios", []))
+            self._revocar_logros_encargo(mision)
             accion["estacion"]["usado"] = False
             self.inventario.agregar(crear_objeto(accion["objeto"]))
             self._agregar_toast(f"Deshaces: recuperas {crear_objeto(accion['objeto'])['titulo']}; "
@@ -1008,6 +1141,7 @@ class Partida:
             avanzar_tiempo(self.estado_mundo, 1)
             if self.estado_mundo["toque_queda_activo"] and not antes:
                 self._agregar_toast("Toque de queda: el lobby cerró. Sal por la terraza.")
+                self.sonido.efecto("alarma")
                 self.avisar_ruta_salida()
             for evento in self.eventos.eventos_listos(self.estado_mundo["hora_actual_min"]):
                 self._agregar_toast(evento.datos["texto"])
@@ -1179,16 +1313,13 @@ class Partida:
             self.alerta_vigilante = max(self.alerta_vigilante, TURNOS_ALERTA_ROBOT)
             self._log("  ¡BIP BIP! El robot de limpieza te detecta y avisa al vigilante por radio.")
         self._robot_contigo = juntos
-        if self.posiciones_torre[VIGILANTE] == aqui and VIGILANTE not in self._encuentros_ronda:
+        if (self.posiciones_torre[VIGILANTE] == aqui and VIGILANTE not in self._encuentros_ronda
+                and self.batalla is None):
             self._encuentros_ronda.add(VIGILANTE)
-            if self.estado_mundo["toque_queda_activo"]:
-                self._terminar(False, "El vigilante de la torre te encontró después del toque de queda.")
-            elif self.pausa_vigilante == 0:
-                self._log("  El vigilante te encuentra: «¿Qué haces aquí arriba?». "
-                          f"Te sermonea {MINUTOS_SERMON} minutos y vuelve a su reporte.")
-                self.alerta_vigilante = 0
-                self.pausa_vigilante = TURNOS_REPORTE
-                self._avanzar_minutos(MINUTOS_SERMON)
+            if self.pausa_vigilante == 0:
+                # Ya no te saca de una: te toca convencerlo (batalla de argumentos).
+                # Si acaba de perder una discusión (pausa > 0) está escribiendo su reporte.
+                self.iniciar_batalla()
 
     def recoger_en_torre(self):
         """Recoge el objeto de la sala actual y lo mete al inventario (lista)."""
@@ -1512,6 +1643,8 @@ class Partida:
                         self.avisar_ruta_salida()
                     elif self.encargos_completos():
                         self.mision.completar()
+                        if sid == "terraza_norte":
+                            self.logros.otorgar("terraza")
                         self._terminar(True, f"Saliste del campus ({sdata['mensaje']}).")
                     else:
                         self._agregar_toast("Todavía tienes pendientes antes de irte.")
@@ -1629,6 +1762,12 @@ class Partida:
     def actualizar(self, dt, teclas):
         if self.terminado:
             return
+        logro = self.logros.mostrando
+        if logro is not None and logro["t"] == 0:
+            self.sonido.efecto("logro")
+        self.logros.actualizar(dt)
+        if self.batalla is not None:
+            self.visual_batalla.actualizar(dt, self.batalla, self.sonido)
 
         if self.capturado:
             # Escena de captura: todo se congela unos segundos antes del fin.
@@ -1687,6 +1826,8 @@ class Partida:
                 if punto_en_rect(self.jugador.x, self.jugador.y, sdata["trigger"]):
                     if self.encargos_completos() and self.salida_abierta(sid):
                         self.mision.completar()
+                        if sid == "terraza_norte":
+                            self.logros.otorgar("terraza")
                         self._terminar(True, f"Saliste del campus ({sdata['mensaje']}).")
                         return
 
@@ -1703,8 +1844,9 @@ class Partida:
             self.vigilante.actualizar(dt)
 
         self._tiempo_acumulado += tiempo_reloj
-        while self._tiempo_acumulado >= SEGUNDOS_POR_MINUTO_JUEGO and not self.terminado:
-            self._tiempo_acumulado -= SEGUNDOS_POR_MINUTO_JUEGO
+        segundos_por_minuto = self.dificultad["segundos_por_minuto"]
+        while self._tiempo_acumulado >= segundos_por_minuto and not self.terminado:
+            self._tiempo_acumulado -= segundos_por_minuto
             self._avanzar_minutos(1)
 
         for toast in self.toasts:
@@ -1801,6 +1943,8 @@ class Partida:
         tesoros = self.tesoros_en_mochila()
         puntos = completadas * 100 + tesoros * PUNTOS_POR_TESORO
         puntos += recompensa_rama(self.mision)   # postorden: recompensas del árbol
+        puntos += self.logros.puntos()
+        puntos = int(puntos * self.dificultad["multiplicador_puntos"])
         if self.gano:
             minutos_restantes = max(0, self.hora_limite - self.estado_mundo["hora_actual_min"])
             puntos += minutos_restantes * 5
@@ -1813,6 +1957,8 @@ class Partida:
             "resultado": "Victoria" if self.gano else "Expulsado",
             "hora_final": formatear_hora(self.estado_mundo["hora_actual_min"]),
             "etapa": self.etapa_alcanzada(),
+            "dificultad": self.dificultad["nombre"],
+            "logros": len(self.logros.especiales()),
             "mundo": resumen(self.estado_mundo),
         }
 
@@ -1977,8 +2123,13 @@ def dibujar_fin(pantalla, fuentes, partida):
         f"Acciones en tu historial: {len(partida.historial)}   ·   "
         f"Rondas de turnos: {partida.rondas_jugadas}", True, COLOR_TEXTO)
     pantalla.blit(detalle, (ANCHO // 2 - detalle.get_width() // 2, 296))
+    especiales = partida.logros.especiales()
+    linea_logros = fuentes["chica"].render(
+        f"Dificultad: {partida.dificultad['nombre']}   ·   Logros: {len(especiales)}"
+        + (" — " + ", ".join(l["titulo"] for l in especiales[:4]) if especiales else ""), True, COLOR_ACENTO)
+    pantalla.blit(linea_logros, (ANCHO // 2 - linea_logros.get_width() // 2, 318))
     aviso = fuentes["normal"].render("ENTER para volver al menú", True, COLOR_TEXTO)
-    pantalla.blit(aviso, (ANCHO // 2 - aviso.get_width() // 2, 340))
+    pantalla.blit(aviso, (ANCHO // 2 - aviso.get_width() // 2, 352))
     if partida.capturado:
         # El vigilante te lleva de la oreja hacia la salida.
         guardia = sprite_personaje("vigilante", "derecha", 0, 4)
@@ -1986,6 +2137,36 @@ def dibujar_fin(pantalla, fuentes, partida):
         pantalla.blit(guardia, guardia.get_rect(midbottom=(ANCHO // 2 - 44, 580)))
         pantalla.blit(alumno, alumno.get_rect(midbottom=(ANCHO // 2 + 44, 580)))
         dibujar_burbuja(pantalla, FRASE_CAPTURA, (ANCHO // 2 - 44, 456), COLOR_PELIGRO)
+
+
+def manejar_entrada_batalla(partida, ev):
+    """Batalla de argumentos: flechas/WASD eligen, ENTER/ESPACIO confirman, 1-5 directo."""
+    if ev.type == pygame.KEYDOWN:
+        if ev.key == pygame.K_ESCAPE:
+            partida.panel_activo = "pausa"
+        elif ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+            partida.batalla_confirmar()
+        elif ev.key in (pygame.K_LEFT, pygame.K_a):
+            partida.batalla_mover(-1, 0)
+        elif ev.key in (pygame.K_RIGHT, pygame.K_d):
+            partida.batalla_mover(1, 0)
+        elif ev.key in (pygame.K_UP, pygame.K_w):
+            partida.batalla_mover(0, -1)
+        elif ev.key in (pygame.K_DOWN, pygame.K_s):
+            partida.batalla_mover(0, 1)
+        elif pygame.K_1 <= ev.key <= pygame.K_5:
+            partida.batalla_elegir(ev.key - pygame.K_1)
+    elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+        if partida.batalla.fase == "elegir":
+            indice = opcion_en(ev.pos)
+            if indice is not None:        # un clic fuera de las opciones no gasta la excusa
+                partida.batalla_elegir(indice)
+        else:
+            partida.batalla_confirmar()
+    elif ev.type == pygame.MOUSEMOTION and partida.batalla.fase == "elegir":
+        indice = opcion_en(ev.pos)
+        if indice is not None:
+            partida.visual_batalla.seleccion = indice
 
 
 def manejar_entrada_torre(partida, ev):
@@ -2073,6 +2254,7 @@ def main():
     }
 
     mapa = crear_mapa_universidad()
+    sonido = Sonido()
     glow_linterna = crear_glow(130, (255, 221, 130), alpha_max=55)
     glow_peligro = crear_glow(RADIO_DETECCION + 10, COLOR_PELIGRO, alpha_max=40)
 
@@ -2099,7 +2281,7 @@ def main():
     def empezar_partida():
         nonlocal partida, panel_inventario, estado_juego
         partida = Partida(mapa, fuentes, personaje=inicio.personaje, carrera=inicio.carrera.id,
-                          eco_consola=ECO_CONSOLA)
+                          eco_consola=ECO_CONSOLA, dificultad=inicio.dificultad, sonido=sonido)
         panel_inventario = PanelInventario(ANCHO, ALTO, partida.inventario.capacidad_maxima)
         estado_juego = JUGANDO
         tutorial.activo = False
@@ -2143,6 +2325,11 @@ def main():
                 if ev is None:
                     continue
 
+            if ev.type == pygame.KEYDOWN and ev.key == pygame.K_n and not (
+                    estado_juego == JUGANDO and partida.ubicacion == "torre" and partida.batalla is None):
+                sonido.alternar_silencio()      # N: silenciar / activar música (en la Torre N se escribe)
+                continue
+
             if estado_juego == JUGANDO:
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_F11:
                     toggle_fullscreen()
@@ -2150,6 +2337,9 @@ def main():
                 if tutorial.activo:
                     if tutorial.manejar_evento(ev) == "fin":
                         marcar_tutorial_visto(tutorial.contexto)
+                    continue
+                if partida.batalla is not None and partida.panel_activo != "pausa":
+                    manejar_entrada_batalla(partida, ev)
                     continue
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_F1 and not partida.en_transicion:
                     partida.panel_activo = None
@@ -2239,6 +2429,16 @@ def main():
                     estado_juego = MENU
                     inicio.vista = "inicio"
 
+        # Música según la situación.
+        if estado_juego == JUGANDO and partida.batalla is not None:
+            sonido.musica("batalla")
+        elif estado_juego == JUGANDO and partida.estado_mundo["toque_queda_activo"]:
+            sonido.musica("toque")
+        elif estado_juego in (JUGANDO, MENU):
+            sonido.musica("campus")
+        else:
+            sonido.musica(None)
+
         if estado_juego == JUGANDO:
             pos_mouse = mouse_logico()
             boton_inventario.actualizar(pos_mouse)
@@ -2260,7 +2460,9 @@ def main():
         if estado_juego == MENU:
             inicio.dibujar(pantalla, tiempo_menu, mouse_logico())
         elif estado_juego == JUGANDO:
-            if partida.ubicacion == "torre":
+            if partida.batalla is not None:
+                dibujar_batalla(pantalla, partida, partida.visual_batalla)
+            elif partida.ubicacion == "torre":
                 dibujar_torre(pantalla, partida, partida.tiempo_animacion)
             elif partida.ubicacion == "interior" and partida.interior_data:
                 pantalla.fill((18, 20, 26))
@@ -2323,6 +2525,7 @@ def main():
             elif partida.panel_activo == "pausa":
                 dibujar_pausa(pantalla, partida)
             tutorial.dibujar(pantalla, partida, camara, tiempo_ui)
+            dibujar_logro(pantalla, partida.logros.mostrando, tiempo_ui)
         elif estado_juego == FIN:
             dibujar_fin(pantalla, fuentes, partida)
 

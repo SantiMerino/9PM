@@ -7,6 +7,7 @@ from carreras import CARRERAS
 from sprites_jugador import PERSONAJES, sprite_estudiante
 from mundo_visual import campus
 from identidad_key import dibujar_key, emblema
+from dificultad import DIFICULTADES, ORDEN as ORDEN_DIFICULTAD
 
 
 def envolver(cadena, ancho, size=14):
@@ -55,11 +56,18 @@ class PantallaInicio:
         self.indice_opcion=0
         self.indice_carrera=0
         self.indice_personaje=0
+        self.indice_dificultad=1
 
     @property
     def carrera(self): return CARRERAS[self.indice_carrera]
     @property
     def personaje(self): return PERSONAJES[self.indice_personaje]
+    @property
+    def dificultad(self): return ORDEN_DIFICULTAD[self.indice_dificultad]
+
+    @staticmethod
+    def botones_dificultad():
+        return [pygame.Rect(226+i*108,564,100,44) for i in range(3)]
 
     @staticmethod
     def botones_inicio():
@@ -96,6 +104,8 @@ class PantallaInicio:
                 elif k in (pygame.K_RIGHT,pygame.K_d): self.indice_carrera=(self.indice_carrera+1)%4
                 elif k in (pygame.K_1,pygame.K_2,pygame.K_3,pygame.K_4): self.indice_carrera=k-pygame.K_1
                 elif k==pygame.K_g: self.indice_personaje=(self.indice_personaje+1)%2
+                elif k in (pygame.K_UP,pygame.K_w): self.indice_dificultad=(self.indice_dificultad+1)%3
+                elif k in (pygame.K_DOWN,pygame.K_s): self.indice_dificultad=(self.indice_dificultad-1)%3
                 elif k==pygame.K_RETURN: return 'jugar'
                 elif k==pygame.K_ESCAPE: self.vista='inicio'
             elif self.vista=='ayuda' and k in (pygame.K_ESCAPE,pygame.K_RETURN): self.vista='inicio'
@@ -110,6 +120,8 @@ class PantallaInicio:
                     if r.collidepoint(ev.pos): self.indice_carrera=i
                 for i,r in enumerate(self.botones_avatar()):
                     if r.collidepoint(ev.pos): self.indice_personaje=i
+                for i,r in enumerate(self.botones_dificultad()):
+                    if r.collidepoint(ev.pos): self.indice_dificultad=i
                 if self.boton_jugar().collidepoint(ev.pos): return 'jugar'
                 if self.boton_volver().collidepoint(ev.pos): self.vista='inicio'
             elif self.vista=='ayuda' and self.boton_volver().collidepoint(ev.pos): self.vista='inicio'
@@ -168,8 +180,12 @@ class PantallaInicio:
             texto(s,l,(320,454+j*19),CREAM,14)
         texto(s,f'Recarga: {int(c.recarga)} s · No ocupa espacio en la bolsa',(320,520),(146,180,179),12)
         boton(s,self.boton_volver(),'Volver',self.boton_volver().collidepoint(mouse),size=16)
+        colores=((104,196,128),(241,199,116),(239,124,100))
+        for i,(r,clave) in enumerate(zip(self.botones_dificultad(),ORDEN_DIFICULTAD)):
+            boton(s,r,DIFICULTADES[clave]['nombre'],i==self.indice_dificultad or r.collidepoint(mouse),colores[i],14)
+        texto(s,'DIFICULTAD · '+DIFICULTADES[self.dificultad]['descripcion'],(226,548),colores[self.indice_dificultad],11)
         boton(s,self.boton_jugar(),'ENTRAR AL CAMPUS  >',True,c.color,18)
-        texto(s,'← → / 1-4 carrera    G cambiar avatar    ENTER jugar',(24,618),(177,201,187),12)
+        texto(s,'← → / 1-4 carrera    G avatar    ↑ ↓ dificultad    ENTER jugar    N música',(24,618),(177,201,187),12)
 
     def _ayuda(self,s,mouse):
         texto(s,'ANTES DE QUE DEN LAS 9',(28,28),CREAM,28)

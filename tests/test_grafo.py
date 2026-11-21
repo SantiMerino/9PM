@@ -6,8 +6,9 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from grafo import Grafo
+from grafo import Grafo, grafo_desde_mazmorra
 from mapa import crear_mapa_universidad
+from mazmorra import generar_mazmorra
 
 
 def grafo_cuadrado():
@@ -122,6 +123,40 @@ class TestDFS(unittest.TestCase):
 
     def test_componentes_grafo_vacio(self):
         self.assertEqual(Grafo().componentes(), [])
+
+
+class TestTorreComoGrafo(unittest.TestCase):
+    def test_atajos_entre_salas_del_mismo_nivel(self):
+        torre = generar_mazmorra(semilla=3)
+        g = grafo_desde_mazmorra(torre, atajos=2, semilla=1)
+        self.assertEqual(len(g.atajos), 2)
+        self.assertEqual(g.numero_aristas(), len(torre["conexiones"]) + len(g.atajos))
+        for a, b in g.atajos:
+            self.assertEqual(torre["niveles"][a], torre["niveles"][b])
+            self.assertNotIn((a, b), torre["conexiones"])
+            self.assertNotIn((b, a), torre["conexiones"])
+
+    def test_atajos_reproducibles_con_semilla(self):
+        torre = generar_mazmorra(semilla=3)
+        primero = grafo_desde_mazmorra(torre, atajos=2, semilla=7).atajos
+        segundo = grafo_desde_mazmorra(torre, atajos=2, semilla=7).atajos
+        self.assertEqual(primero, segundo)
+
+    def test_atajo_crea_ruta_alternativa(self):
+        torre = generar_mazmorra(semilla=3)
+        g = grafo_desde_mazmorra(torre, atajos=1, semilla=1)
+        a, b = g.atajos[0]
+        self.assertEqual(g.bfs_ruta(a, b), [a, b])
+        self.assertTrue(g.hay_ruta(a, b, bloqueadas=[(a, b)]))   # sigue el camino del árbol
+        self.assertEqual(len(g.componentes()), 1)
+
+    def test_sin_pares_posibles_no_falla(self):
+        torre = {"salas": ["raiz", "hija"], "conexiones": [("raiz", "hija")],
+                 "niveles": {"raiz": 0, "hija": 1}}
+        g = grafo_desde_mazmorra(torre, atajos=5, semilla=1)
+        self.assertEqual(g.atajos, [])
+        self.assertEqual(g.numero_aristas(), 1)
+        self.assertEqual(grafo_desde_mazmorra(None).atajos, [])
 
 
 if __name__ == "__main__":

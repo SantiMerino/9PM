@@ -9,6 +9,7 @@ guardan O(V + E) datos en vez de O(V²) y recorrer los vecinos de un nodo cuesta
 lo que tiene, no V.
 """
 
+import random
 from collections import deque
 
 
@@ -154,3 +155,45 @@ class Grafo:
                 zonas.append(zona)
         zonas.sort(key=len, reverse=True)
         return zonas
+
+
+# ----------------------------------------------------------------------
+# Segundo uso del Grafo: la Torre (mazmorra) con atajos
+# ----------------------------------------------------------------------
+def grafo_desde_mazmorra(mazmorra, atajos=2, semilla=None):
+    """Convierte el árbol de la Torre en un Grafo y le agrega `atajos` aristas extra
+    entre salas del MISMO nivel que no estén conectadas, para que haya caminos alternativos.
+    Guarda la lista de atajos agregados en grafo.atajos (lista de tuplas).
+
+    Un árbol es un grafo conexo sin ciclos; cada atajo cierra un ciclo, así que deja
+    de ser árbol y aparecen rutas alternativas. Si no hay suficientes pares posibles
+    agrega los que pueda (incluso 0). O(V²) por armar los pares candidatos."""
+    grafo = Grafo()
+    grafo.atajos = []
+    if not isinstance(mazmorra, dict):
+        return grafo
+    for sala in mazmorra.get("salas", []):
+        grafo.agregar_nodo(sala)
+    for padre, hija in mazmorra.get("conexiones", []):
+        grafo.agregar_arista(padre, hija)
+
+    por_nivel = {}
+    for sala, nivel in mazmorra.get("niveles", {}).items():
+        if grafo.existe_nodo(sala):
+            por_nivel.setdefault(nivel, []).append(sala)
+    candidatos = []
+    for nivel in sorted(por_nivel):
+        salas = sorted(por_nivel[nivel])
+        for i, a in enumerate(salas):
+            for b in salas[i + 1:]:
+                if b not in grafo.vecinos(a):
+                    candidatos.append((a, b))
+
+    try:
+        cantidad = max(0, min(int(atajos), len(candidatos)))
+    except (TypeError, ValueError):
+        cantidad = 0
+    for a, b in random.Random(semilla).sample(candidatos, cantidad):
+        grafo.agregar_arista(a, b)
+        grafo.atajos.append((a, b))
+    return grafo

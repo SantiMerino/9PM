@@ -103,3 +103,81 @@ def crear_mision_principal():
     for sala,titulo,pasos in ENCARGOS:
         m.agregar_submision(Mision(titulo,' · '.join(pasos),sala,pasos))
     return m
+
+
+# ---------------------------------------------------------------------------
+# Árbol de misiones del juego (Checkpoint 3)
+# ---------------------------------------------------------------------------
+#
+# Salir del campus (lobby)  [raíz]
+# └── Préstamo de medianoche (biblioteca)
+#     ├── Una última firma (sala_reuniones)
+#     │   ├── Cálculo pendiente (r102)
+#     │   └── Última exposición (r105)
+#     │       └── Bitácora de física (r104)
+#     ├── Entrega digital (r101)
+#     │   ├── Puesta en marcha (lab_siemens)
+#     │   │   └── Prototipo listo (lab_kite)
+#     │   └── Redes conectadas (r103)
+#     │       └── Respaldo completo (lab_click)
+#     └── Cierre de caja (cafeteria)
+#         └── Todo en su lugar (bodega)
+#             └── Señal estable (lab_spark)
+#
+# Las dependencias salen del juego: con el libro de la biblioteca arranca la
+# noche, la USB de R101 se usa en el Lab Siemens, el profesor firma antes de
+# las entregas de aulas y la cafetería se cierra antes de ordenar la bodega.
+
+# (sala del encargo, sala del encargo del que depende). None = cuelga de la
+# raíz. Van en preorden para que cada padre exista antes que sus hijas.
+DEPENDENCIAS = [
+    ('biblioteca', None),
+    ('sala_reuniones', 'biblioteca'),
+    ('r102', 'sala_reuniones'),
+    ('r105', 'sala_reuniones'),
+    ('r104', 'r105'),
+    ('r101', 'biblioteca'),
+    ('lab_siemens', 'r101'),
+    ('lab_kite', 'lab_siemens'),
+    ('r103', 'r101'),
+    ('lab_click', 'r103'),
+    ('cafeteria', 'biblioteca'),
+    ('bodega', 'cafeteria'),
+    ('lab_spark', 'bodega'),
+]
+
+# Efecto en el diccionario del mundo al completar el encargo. Las tuplas de
+# puertas van ordenadas alfabéticamente (contrato con estado_mundo.py).
+EFECTOS = {
+    'biblioteca': {'apaga': 'biblioteca'},
+    'cafeteria': {'abre': ('terraza', 'terraza_n')},
+}
+
+# Recompensa = 10 puntos por nivel: nivel 1 = 10, nivel 2 = 20, ... nivel 4 = 40.
+# Los encargos más profundos valen más porque exigen completar toda su rama antes.
+RECOMPENSA_POR_NIVEL = 10
+
+
+def crear_arbol_misiones_juego():
+    """Arma el árbol de misiones con dependencias a partir de ENCARGOS.
+
+    Usa los mismos 13 encargos (títulos, salas y pasos) y los cuelga según
+    DEPENDENCIAS debajo de una raíz contenedora «Salir del campus». Cada
+    llamada crea objetos nuevos, así cada partida tiene su propio árbol.
+    Queda con 4 niveles debajo de la raíz. O(n).
+    """
+    raiz = Mision('Salir del campus',
+                  'Completa los encargos del primer nivel y sal por el lobby o la terraza.',
+                  'lobby', es_raiz=True)
+    datos = {sala: (titulo, pasos) for sala, titulo, pasos in ENCARGOS}
+    por_sala = {}
+    for sala, sala_padre in DEPENDENCIAS:
+        titulo, pasos = datos[sala]
+        efecto = EFECTOS.get(sala)
+        mision = Mision(titulo, ' · '.join(pasos), sala, pasos,
+                        efecto=dict(efecto) if efecto else None)
+        padre = raiz if sala_padre is None else por_sala[sala_padre]
+        padre.agregar_submision(mision)
+        mision.recompensa = RECOMPENSA_POR_NIVEL * mision.nivel()
+        por_sala[sala] = mision
+    return raiz

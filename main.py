@@ -558,7 +558,7 @@ class Partida:
         self.historial = []        # PILA de acciones (historial.py)
         self.eventos = ColaEventos()
         self.mision = crear_mision_principal()
-        self.mision_libro, self.mision_lab, self.mision_profesor = self.mision.hijas[:3]
+        self._cargar_encargos()
         self.objetos_mundo = [dict(objeto, recogido=False) for objeto in OBJETOS_MAPA]
         self.interactivos = [dict(item, usado=False) for item in INTERACTIVOS]
         self.toasts = []
@@ -634,6 +634,35 @@ class Partida:
         self._agregar_toast("Bienvenido a KEY. Completa 13 encargos y sal antes del cierre. "
                             "Las gradas suben a la Torre (2º nivel). Q herramienta · M mapa · "
                             "J misiones · H historial.")
+
+    # ------------------------------------------------------------------
+    # Encargos (misiones del campus)
+    # ------------------------------------------------------------------
+    def _cargar_encargos(self):
+        """Arma la lista de encargos en orden de juego y un diccionario sala -> encargo.
+
+        Todo el juego consulta los encargos por aquí y no por la estructura interna
+        de la misión principal, así el árbol de misiones puede cambiar de forma sin
+        tocar el resto del código. Buscar por sala en el diccionario es O(1) en
+        promedio, contra O(n) recorriendo la lista.
+        """
+        self.encargos = list(self.mision.hijas)
+        self.encargo_por_sala = {m.ubicacion: m for m in self.encargos}
+        self.mision_libro = self.encargo_en("biblioteca")
+        self.mision_lab = self.encargo_en("lab_siemens")
+        self.mision_profesor = self.encargo_en("sala_reuniones")
+
+    def encargo_en(self, sala):
+        """Encargo de la sala, o None si la sala no tiene (nunca lanza excepción)."""
+        return self.encargo_por_sala.get(sala)
+
+    def encargos_completos(self):
+        """True si ya están hechos todos los encargos del nivel."""
+        return all(m.completada for m in self.encargos)
+
+    def encargos_hechos(self):
+        """Cuántos encargos están completados."""
+        return sum(1 for m in self.encargos if m.completada)
 
     # ------------------------------------------------------------------
     # Narración
@@ -749,7 +778,10 @@ class Partida:
             self._agregar_toast(f"Deshaces: {crear_objeto(nombre)['titulo']} vuelve a tu mochila.")
             return True
         if tipo == "usar":
-            mision = next(m for m in self.mision.hijas if m.ubicacion == accion["sala"])
+            mision = self.encargo_en(accion["sala"])
+            if mision is None:
+                self._agregar_toast("No puedes deshacer ese uso: la sala no tiene encargo.")
+                return False
             if mision.paso != accion["paso"] + 1 or self.inventario.esta_lleno():
                 self._agregar_toast("No puedes deshacer ese uso: la estación ya avanzó.")
                 return False
@@ -834,8 +866,9 @@ class Partida:
         self.jugador.x, self.jugador.y = sala["spawn"]
         self.jugador.direccion = "arriba"
         self.vigilante.congelado = True
-        m = next(m for m in self.mision.hijas if m.ubicacion == nombre)
-        self._agregar_toast(f"{data['etiqueta']}: {m.objetivo_actual}.")
+        m = self.encargo_en(nombre)
+        if m is not None:
+            self._agregar_toast(f"{data['etiqueta']}: {m.objetivo_actual}.")
         if self.vigilante.persiguiendo:
             # Después de las 21:00 te sigue: entra por la misma puerta.
             self.vigilante.empezar_persecucion(sala["spawn"], retraso=1.2)
@@ -1357,7 +1390,7 @@ class Partida:
             # Salidas del campus
             for sid, sdata in SALIDAS.items():
                 if punto_en_rect(self.jugador.x, self.jugador.y, sdata["trigger"]):
-                    if all(h.completada for h in self.mision.hijas):
+                    if self.encargos_completos():
                         self.mision.completar()
                         self._terminar(True, f"Saliste del campus ({sdata['mensaje']}).")
                     else:
@@ -1416,7 +1449,10 @@ class Partida:
         if paso is None:
             self._agregar_toast(item["mensaje"])
             return False
-        mision = next(m for m in self.mision.hijas if m.ubicacion == self.sala_interior)
+        mision = self.encargo_en(self.sala_interior)
+        if mision is None:
+            self._agregar_toast(item["mensaje"])
+            return False
         if mision.completada or paso < mision.paso:
             self._agregar_toast("Esta estación ya está completada.")
             return False
@@ -1524,7 +1560,7 @@ class Partida:
             # Auto victoria al pisar salida con misiones OK
             for sdata in SALIDAS.values():
                 if punto_en_rect(self.jugador.x, self.jugador.y, sdata["trigger"]):
-                    if all(h.completada for h in self.mision.hijas):
+                    if self.encargos_completos():
                         self.mision.completar()
                         self._terminar(True, f"Saliste del campus ({sdata['mensaje']}).")
                         return
@@ -1636,7 +1672,7 @@ class Partida:
         return sum(1 for o in self.inventario.objetos if es_tesoro(o["nombre"]))
 
     def calcular_puntaje(self):
-        completadas = sum(1 for h in self.mision.hijas if h.completada)
+        completadas = self.encargos_hechos()
         tesoros = self.tesoros_en_mochila()
         puntos = completadas * 100 + tesoros * PUNTOS_POR_TESORO
         if self.gano:

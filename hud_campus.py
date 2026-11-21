@@ -20,8 +20,8 @@ def lineas(cadena,ancho,size=14):
 
 def objetivo(p):
     if p.ubicacion=='interior':
-        return next((m for m in p.mision.hijas if m.ubicacion==p.sala_interior),None)
-    return next((m for m in p.mision.hijas if not m.completada),None)
+        return p.encargo_en(p.sala_interior)
+    return next((m for m in p.encargos if not m.completada),None)
 
 def contexto(p):
     if p.ubicacion=='interior':
@@ -49,8 +49,8 @@ def dibujar_hud(s,p,fuentes=None):
     for l in lineas(caption,470,12)[:1]: texto(s,l,(96,38),(162,194,185),12)
     color=(239,124,100) if p.estado_mundo['toque_queda_activo'] else CREAM
     texto(s,formatear_hora(p.estado_mundo['hora_actual_min']),(626,9),color,24)
-    done=sum(m.completada for m in p.mision.hijas)
-    texto(s,f'{done:02}/{len(p.mision.hijas)} ENCARGOS',(626,39),TEAL,12)
+    done=sum(m.completada for m in p.encargos)
+    texto(s,f'{done:02}/{len(p.encargos)} ENCARGOS',(626,39),TEAL,12)
     if p.ubicacion=='pasillo':
         if _MINIMAPA is None: _MINIMAPA=pygame.transform.scale(campus(),(174,120))
         caja(s,(768,78,180,150),INK)
@@ -105,7 +105,7 @@ def dibujar_mapa(s,p):
     texto(s,'Primer nivel · distribución del plano de referencia',(28,54),(161,191,181),13)
     scale=.48; ox,oy=20,88
     s.blit(pygame.transform.scale(campus(),(int(MUNDO_ANCHO*scale),int(MUNDO_ALTO*scale))),(ox,oy))
-    for m in p.mision.hijas:
+    for m in p.encargos:
         x,y=PUERTAS[m.ubicacion]['retorno']
         cx,cy=int(ox+x*scale),int(oy+y*scale)
         if m.completada:
@@ -116,9 +116,9 @@ def dibujar_mapa(s,p):
     pos=PUERTAS[p.sala_interior]['retorno'] if p.ubicacion=='interior' else p.jugador.pos
     x,y=ox+pos[0]*scale,oy+pos[1]*scale
     pygame.draw.circle(s,INK,(int(x),int(y)),7); pygame.draw.circle(s,CREAM,(int(x),int(y)),4)
-    hechas=sum(m.completada for m in p.mision.hijas)
-    texto(s,f'DESTINOS  {hechas}/{len(p.mision.hijas)}',(772,98),TEAL,16)
-    for i,m in enumerate(p.mision.hijas):
+    hechas=sum(m.completada for m in p.encargos)
+    texto(s,f'DESTINOS  {hechas}/{len(p.encargos)}',(772,98),TEAL,16)
+    for i,m in enumerate(p.encargos):
         y=126+i*29
         if m.completada:
             pygame.draw.rect(s,VERDE_OSCURO,(766,y-3,182,24)); pygame.draw.rect(s,VERDE,(766,y-3,4,24))

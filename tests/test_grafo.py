@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from grafo import Grafo
+from mapa import crear_mapa_universidad
 
 
 def grafo_cuadrado():
@@ -54,6 +55,46 @@ class TestGrafoBasico(unittest.TestCase):
         self.assertFalse(g.existe_nodo("nada"))
         self.assertEqual(g.vecinos("nada"), set())
         self.assertFalse(g.existe_nodo(["no", "hasheable"]))
+
+
+class TestBFS(unittest.TestCase):
+    def test_ruta_mas_corta_usa_la_diagonal(self):
+        g = grafo_cuadrado()
+        self.assertEqual(g.bfs_ruta("b", "d"), ["b", "a", "d"])
+        self.assertEqual(g.bfs_ruta("a", "c"), ["a", "c"])
+        self.assertEqual(g.bfs_ruta("a", "a"), ["a"])
+
+    def test_arista_bloqueada_da_ruta_alternativa(self):
+        g = grafo_cuadrado()
+        self.assertEqual(g.bfs_ruta("a", "c", bloqueadas=[("a", "c")]), ["a", "b", "c"])
+
+    def test_bloqueo_en_cualquier_orden(self):
+        g = grafo_cuadrado()
+        self.assertEqual(g.bfs_ruta("a", "b", bloqueadas=[("b", "a")]), ["a", "c", "b"])
+        self.assertEqual(g.bfs_ruta("b", "a", bloqueadas=[("a", "b")]), ["b", "c", "a"])
+
+    def test_ruta_imposible_y_nodo_inexistente(self):
+        g = grafo_cuadrado()
+        g.agregar_nodo("isla")
+        self.assertIsNone(g.bfs_ruta("a", "isla"))
+        self.assertIsNone(g.bfs_ruta("a", "no_existe"))
+        self.assertIsNone(g.bfs_ruta("no_existe", "a"))
+        self.assertFalse(g.hay_ruta("a", "isla"))
+        self.assertTrue(g.hay_ruta("a", "d"))
+
+    def test_bloqueadas_invalidas_no_fallan(self):
+        g = grafo_cuadrado()
+        self.assertEqual(g.bfs_ruta("a", "c", bloqueadas=[None, "x", (1, 2, 3)]), ["a", "c"])
+
+    def test_alcanzables_con_puerta_de_terraza_cerrada(self):
+        campus = Grafo()
+        campus.grafo = {n: set(v) for n, v in crear_mapa_universidad().grafo.items()}
+        abiertos = campus.alcanzables("lobby")
+        cerrada = campus.alcanzables("lobby", bloqueadas=[("terraza", "terraza_n")])
+        self.assertIn("terraza_n", abiertos)
+        self.assertNotIn("terraza_n", cerrada)
+        self.assertIn("terraza", cerrada)
+        self.assertEqual(campus.alcanzables("no_existe"), set())
 
 
 if __name__ == "__main__":

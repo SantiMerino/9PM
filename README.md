@@ -149,9 +149,9 @@ Hasta el Checkpoint 2, 9PM incluye:
 - Torre generada recursivamente, tutorial, mapa, bitácora y vigilante.
 - Grafo del campus con rutas BFS y patrulla DFS.
 
-El Checkpoint 3 extiende el grafo para modelar puertas cerradas, convierte los
-encargos en un árbol de dependencias y amplía el estado del mundo. La integración
-de estas piezas y su evidencia se actualizan al entrar los PR de cada integrante.
+El Checkpoint 3 agrega un grafo genérico con puertas que se pueden cerrar,
+convierte los encargos en un árbol de dependencias y amplía el estado del
+mundo. Las tres estructuras están integradas en la partida (ver abajo).
 
 ### Cómo trabajan juntas las estructuras
 
@@ -165,7 +165,7 @@ completar un encargo ──efecto──▶ cambia puertas/luces ──bloqueadas
                                                           terraza             sin salida
 ```
 
-Ejemplo previsto: completar **Cierre de caja** abre la conexión a la terraza;
+Ejemplo: completar **Cierre de caja** abre la conexión a la terraza;
 al llegar a las 21:00 el toque de queda cierra la puerta del lobby. El BFS
 recibe las puertas cerradas y calcula una ruta por la terraza. Si esa conexión
 sigue cerrada, el juego informa que no hay salida disponible. El cambio de la
@@ -233,6 +233,13 @@ añaden rutas alternativas entre salas del mismo nivel.
 | Agregar arista / consultar vecinos | O(1) promedio |
 | BFS (`bfs_ruta`), DFS, alcanzables y componentes | O(V + E) |
 
+`Grafo` (`grafo.py`) no sabe nada del campus: `MapaCampus` hereda de él y solo
+agrega posiciones, y `grafo_desde_mazmorra` convierte el árbol de la Torre en
+grafo y le suma 2 atajos entre salas del mismo nivel. BFS da la ruta con menos
+saltos porque explora por capas: el primer camino que llega al destino es el
+más corto. Las puertas cerradas llegan como `bloqueadas` y se normalizan a
+`frozenset`, así bloquean en los dos sentidos con consulta O(1).
+
 ### Árbol de misiones
 
 Un árbol expresa las dependencias: cada misión depende como máximo de una
@@ -253,14 +260,14 @@ Préstamo de medianoche · Biblioteca
 │   └── Redes conectadas · R103
 │       └── Respaldo completo · Lab Click
 └── Cierre de caja · Cafetería
-    ├── Todo en su lugar · Bodega
-    │   └── Señal estable · Lab Spark
-    └── Salida por la terraza
+    └── Todo en su lugar · Bodega
+        └── Señal estable · Lab Spark
 ```
 
-Este es el árbol de 14 nodos de `arboles.py`, que sirve como referencia para
-las dependencias. La integración del juego debe alinear sus ubicaciones y sus
-13 encargos con esa estructura antes de publicar la evidencia final.
+Es el árbol que arma `crear_arbol_misiones_juego()` en `misiones.py`: los 13
+encargos del juego debajo de la raíz «Salir del campus». La partida los recorre
+en preorden (`todas_las_misiones`), así completar en ese orden siempre respeta
+las dependencias.
 
 ### Diccionario del estado del mundo
 
@@ -283,14 +290,32 @@ diccionario y la misión vuelve a su estado anterior. La hora no retrocede y el
 toque de queda sigue activo si ya comenzó: el jugador puede corregir una acción,
 pero no borrar el tiempo que pasó ni reabrir automáticamente el lobby.
 
+### Cómo se afectan las estructuras en la partida
+
+- **Árbol → partida:** una estación de una misión bloqueada no avanza y avisa
+  «Bloqueada: primero completa X». Al inicio solo está disponible la biblioteca.
+- **Árbol → diccionario:** completar una misión aplica su `efecto` (Préstamo de
+  medianoche apaga la biblioteca; Cierre de caja abre `terraza — terraza_n`),
+  la marca `completada` y deja `disponible` a sus hijas.
+- **Diccionario → grafo:** las salidas del campus solo funcionan si su puerta
+  está abierta. A las 21:00 el toque de queda cierra `lobby — lobby_frente` y el
+  BFS, con `puertas_cerradas(estado)` como `bloqueadas`, busca la salida por la
+  terraza o avisa «No hay salida abierta».
+- **Torre:** se mueve también por los atajos y la opción 10, *Ruta a una sala*,
+  responde con BFS.
+- **Puntaje:** suma `recompensa_rama(raiz)` (postorden); el resumen final incluye
+  la etapa alcanzada (`por_niveles`) y `resumen(estado)`.
+- **Decisiones:** el vigilante ignora las puertas (tiene llaves). Deshacer revierte
+  los cambios del diccionario, pero la hora y el toque de queda no retroceden.
+
 ### Casos límite
 
-Los menús y las estructuras deben manejar sin cerrar el juego: nodo, sala o
-misión inexistente; ruta imposible por puertas cerradas; misión bloqueada por
-su dependencia; misión ya completada; y entradas de menú con texto, cero,
-número negativo o valor fuera de rango. Cada caso debe mostrar un mensaje
-entendible y conservar el estado de la partida. Los mensajes y resultados
-finales se documentarán aquí junto a las pruebas de integración.
+Ninguno cierra el juego; todos muestran un mensaje y conservan la partida:
+misión bloqueada o ya completada, sala o nodo inexistente, ruta imposible por
+puertas cerradas, salida cerrada, completar dos veces (no duplica la recompensa),
+y en los menús: texto, vacío, `0`, negativos y fuera de rango. Están cubiertos en
+`tests/test_checkpoint3.py`, `test_grafo.py`, `test_misiones.py` y
+`test_estado_mundo.py`.
 
 ### Evidencia de ejecución
 
@@ -299,36 +324,52 @@ La bitácora recorre las misiones en preorden y dibuja cada una con sangría seg
 su nivel y un conector hacia la misión de la que depende. Una misión completada
 sale en verde con palomita, una disponible muestra su paso actual y una bloqueada
 sale en gris con candado e indica qué misión falta primero. Abajo se ven la etapa
-actual (recorrido por niveles) y, cuando las misiones tienen recompensa, la
-recompensa acumulada.
+actual (recorrido por niveles) y la recompensa acumulada.
 
 ![Bitácora en árbol](docs/capturas/cp3_01_bitacora_arbol.png)
 
-Pruebas (`python -m unittest discover -s tests`) en esta rama:
+Pruebas (`python -m unittest discover -s tests`):
 
 ```text
-Ran 77 tests in 2.607s
+Ran 150 tests in 3.698s
 
 OK
 ```
 
-Pendiente al integrar las ramas de grafo, misiones y estado del mundo: las
-capturas `cp3_02_ruta_alternativa.png`, `cp3_03_mision_bloqueada.png` y
-`cp3_04_opcion_invalida.png`, y la salida de consola de sus demos.
+Grafo:
+
+```text
+>>> m.bfs_ruta("lobby", "terraza_n")
+['lobby', 'lobby_frente', 'lobby_acceso', 'sur', 'este_s', 'este_c', 'norte', 'terraza', 'terraza_n']
+>>> m.bfs_ruta("lobby", "terraza_n", bloqueadas=[("terraza", "terraza_n")])
+None
+>>> grafo_desde_mazmorra(generar_mazmorra(semilla=3), atajos=2, semilla=1).atajos
+[('Archivo de Tesis', 'Sala de Simulación'), ('Bodega de Reactivos', 'Cámara Anecoica')]
+```
+
+Estado del mundo:
+
+```text
+>>> consultar(e, "puertas", ("terraza_n", "terraza"))
+'cerrada'
+>>> cambios = aplicar_efecto(e, {"abre": ("terraza", "terraza_n")}); puertas_cerradas(e)
+[]
+>>> revertir_cambios(e, cambios); puertas_cerradas(e)
+[('terraza', 'terraza_n')]
+>>> avanzar_tiempo(e, 45); resumen(e)["toque_queda"], puertas_cerradas(e)
+(True, [('lobby', 'lobby_frente'), ('terraza', 'terraza_n')])
+```
+
 Las capturas del Checkpoint 2 están en [`docs/capturas/`](docs/capturas).
 
 ### Aporte de cada integrante (Checkpoint 3)
 
-La tabla final se completará con los cambios integrados y se verificará contra
-`git shortlog -sn` y `git log --author=...`, como pide la rúbrica. El reparto
-previsto es:
-
 | Parte | Archivos principales | Integrante |
 |---|---|---|
-| Grafo genérico, BFS/DFS y atajos de la Torre | `grafo.py`, `mapa.py`, pruebas | Frederick Argueta |
-| Árbol de misiones y recorridos | `misiones.py`, pruebas | Juan Diego Cornejo |
-| Estado del mundo y efectos reversibles | `estado_mundo.py`, pruebas | Ricardo Vides |
-| Integración y casos límite | `main.py`, pruebas de integración | Santiago Merino |
+| Grafo genérico, BFS/DFS y atajos de la Torre | `grafo.py`, `mapa.py`, `tests/test_grafo.py` | Frederick Argueta |
+| Árbol de misiones y recorridos | `misiones.py`, `tests/test_misiones.py` | Juan Diego Cornejo |
+| Estado del mundo y efectos reversibles | `estado_mundo.py`, `tests/test_estado_mundo.py` | Santiago Merino (cubrió la parte asignada a Ricardo Vides, que no participó) |
+| Integración y casos límite | `main.py`, `tests/test_checkpoint3.py` | Santiago Merino |
 | Bitácora, README y evidencia | `hud_campus.py`, `README.md`, `docs/` | Nathaly Mena |
 
 ---

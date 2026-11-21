@@ -97,5 +97,32 @@ class TestBFS(unittest.TestCase):
         self.assertEqual(campus.alcanzables("no_existe"), set())
 
 
+class TestDFS(unittest.TestCase):
+    def test_dfs_orden_preorden_sorted(self):
+        g = grafo_cuadrado()
+        self.assertEqual(g.dfs("a"), ["a", "b", "c", "d"])
+        self.assertEqual(g.dfs("no_existe"), [])
+
+    def test_dfs_campus_visita_los_16_sin_repetir(self):
+        campus = crear_mapa_universidad()
+        campus_generico = Grafo()
+        campus_generico.grafo = {n: set(v) for n, v in campus.grafo.items()}
+        recorrido = campus_generico.dfs("lobby")
+        self.assertEqual(len(recorrido), 16)
+        self.assertEqual(len(set(recorrido)), 16)
+        self.assertEqual(set(recorrido), set(campus.grafo))
+
+    def test_componentes_detecta_una_isla(self):
+        g = grafo_cuadrado()
+        g.agregar_arista("isla_1", "isla_2")
+        zonas = g.componentes()
+        self.assertEqual(len(zonas), 2)
+        self.assertEqual(zonas[0], {"a", "b", "c", "d"})
+        self.assertEqual(zonas[1], {"isla_1", "isla_2"})
+
+    def test_componentes_grafo_vacio(self):
+        self.assertEqual(Grafo().componentes(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

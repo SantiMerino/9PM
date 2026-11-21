@@ -122,3 +122,35 @@ class Grafo:
                     visitados.add(vecino)
                     cola.append(vecino)
         return visitados
+
+    # ------------------------------------------------------------------
+    # DFS: recorrido en profundidad y zonas aisladas
+    # ------------------------------------------------------------------
+    def dfs(self, origen):
+        """Recorrido en profundidad (preorden recursivo, vecinos en orden sorted).
+        Es el mismo orden que usaba MapaCampus, porque de él sale la ronda del
+        vigilante. [] si el origen no existe. O(V + E)."""
+        if not self.existe_nodo(origen):
+            return []
+        orden, visitados = [], set()
+        self._dfs_visitar(origen, orden, visitados)
+        return orden
+
+    def _dfs_visitar(self, nodo, orden, visitados):
+        visitados.add(nodo)
+        orden.append(nodo)
+        for vecino in sorted(self.vecinos(nodo)):
+            if vecino not in visitados:
+                self._dfs_visitar(vecino, orden, visitados)
+
+    def componentes(self):
+        """Zonas conectadas del grafo como lista de sets, la más grande primero.
+        Si hay más de una, las demás son zonas aisladas. O(V + E)."""
+        zonas, vistos = [], set()
+        for nodo in self.nodos():
+            if nodo not in vistos:
+                zona = set(self.dfs(nodo))
+                vistos |= zona
+                zonas.append(zona)
+        zonas.sort(key=len, reverse=True)
+        return zonas

@@ -96,8 +96,23 @@ from interiores import (
     dibujar_interior,
     dibujar_interactivos_interior,
 )
-from misiones import crear_mision_principal
-from estado_mundo import crear_estado_inicial, avanzar_tiempo, formatear_hora
+from misiones import (crear_arbol_misiones_juego, todas_las_misiones, por_niveles,
+                      recompensa_rama)
+from estado_mundo import (
+    PUERTA_LOBBY,
+    PUERTA_TERRAZA,
+    actualizar,
+    aplicar_efecto,
+    avanzar_tiempo,
+    consultar,
+    crear_estado_inicial,
+    formatear_hora,
+    insertar,
+    puertas_cerradas,
+    resumen,
+    revertir_cambios,
+)
+from grafo import grafo_desde_mazmorra
 from ui_inventario import BotonInventario, PanelInventario, crear_objeto, dibujar_arte, obtener_arte, reiniciar_fuentes, es_tesoro
 from ui_torre import (
     dibujar_torre,
@@ -196,6 +211,7 @@ OPCIONES_TORRE = (
     "Ver turnos",
     "Ver eventos",
     "Ver inventario",
+    "Ruta a una sala",
 )
 
 ARCHIVO_PUNTAJES = Path(__file__).parent / "puntajes.json"
@@ -557,7 +573,7 @@ class Partida:
         self.inventario = Inventario()
         self.historial = []        # PILA de acciones (historial.py)
         self.eventos = ColaEventos()
-        self.mision = crear_mision_principal()
+        self.mision = crear_arbol_misiones_juego()
         self._cargar_encargos()
         self.objetos_mundo = [dict(objeto, recogido=False) for objeto in OBJETOS_MAPA]
         self.interactivos = [dict(item, usado=False) for item in INTERACTIVOS]
@@ -579,6 +595,8 @@ class Partida:
         # Torre de Laboratorios: se genera RECURSIVAMENTE al iniciar la partida
         # y sus eventos del mapa se encolan desde ya (FIFO).
         self.torre = generar_mazmorra(self.azar.randrange(1_000_000))
+        # La misma clase Grafo del campus, con 2 atajos entre salas del mismo nivel.
+        self.grafo_torre = grafo_desde_mazmorra(self.torre, atajos=2, semilla=semilla)
         self.eventos_torre = crear_cola_eventos_torre(self.azar)
         self.turnos = crear_turnos()
         nivel2 = [s for s in self.torre["salas"] if self.torre["niveles"][s] == 2]
@@ -646,11 +664,76 @@ class Partida:
         tocar el resto del código. Buscar por sala en el diccionario es O(1) en
         promedio, contra O(n) recorriendo la lista.
         """
-        self.encargos = list(self.mision.hijas)
+        self.encargos = todas_las_misiones(self.mision)   # preorden: respeta dependencias
         self.encargo_por_sala = {m.ubicacion: m for m in self.encargos}
         self.mision_libro = self.encargo_en("biblioteca")
         self.mision_lab = self.encargo_en("lab_siemens")
         self.mision_profesor = self.encargo_en("sala_reuniones")
+        # Árbol -> diccionario: cada encargo arranca "disponible" o "bloqueada".
+        for m in self.encargos:
+            insertar(self.estado_mundo, "misiones", m.ubicacion,
+                     "disponible" if m.desbloqueada() else "bloqueada")
+
+    def _completar_encargo(self, mision):
+        """Completa la misión y lleva sus consecuencias al diccionario del mundo:
+        aplica su efecto (abre puertas, apaga luces), la marca "completada" y deja
+        "disponible" a las hijas que se desbloquean. Devuelve la lista de cambios
+        para que el deshacer pueda revertirlos."""
+        mision.completar()
+        cambios = aplicar_efecto(self.estado_mundo, mision.efecto)
+        cambios.append(("misiones", mision.ubicacion,
+                        actualizar(self.estado_mundo, "misiones", mision.ubicacion, "completada")))
+        for hija in mision.hijas:
+            if not hija.completada and hija.desbloqueada():
+                cambios.append(("misiones", hija.ubicacion,
+                                actualizar(self.estado_mundo, "misiones", hija.ubicacion, "disponible")))
+        efecto = mision.efecto or {}
+        if "abre" in efecto:
+            self._agregar_toast("Se abrió la salida de la terraza: ya puedes salir por ahí.")
+        if "apaga" in efecto:
+            self._agregar_toast(f"{NOMBRES.get(efecto['apaga'], efecto['apaga'])} apagó sus luces.")
+        nuevas = [h.titulo for h in mision.hijas if h.desbloqueada() and not h.completada]
+        if nuevas:
+            self._agregar_toast("Desbloqueaste: " + ", ".join(nuevas) + ".")
+        return cambios
+
+    def puerta_de_salida(self, salida_id):
+        """Puerta del diccionario que controla cada salida del campus."""
+        return PUERTA_LOBBY if salida_id == "lobby_sur" else PUERTA_TERRAZA
+
+    def salida_abierta(self, salida_id):
+        return consultar(self.estado_mundo, "puertas", self.puerta_de_salida(salida_id)) == "abierta"
+
+    def nodo_del_jugador(self):
+        """Nodo del grafo del campus más cercano al jugador. O(V)."""
+        pos = self.jugador.pos
+        return min(self.mapa.posiciones, key=lambda n: distancia(pos, self.mapa.posiciones[n]))
+
+    def ruta_a_salida(self):
+        """Diccionario -> grafo: BFS desde el jugador hasta alguna salida, esquivando
+        las puertas cerradas. Devuelve (ruta, nodo_salida) o (None, None) si no hay salida."""
+        origen = self.nodo_del_jugador()
+        cerradas = puertas_cerradas(self.estado_mundo)
+        mejores = []
+        for salida_id, destino in (("lobby_sur", "lobby"), ("terraza_norte", "terraza_n")):
+            if not self.salida_abierta(salida_id):
+                continue          # la puerta de esa salida está cerrada en el diccionario
+            ruta = self.mapa.bfs_ruta(origen, destino, bloqueadas=cerradas)
+            if ruta is not None:
+                mejores.append((len(ruta), destino, ruta))
+        if not mejores:
+            return None, None
+        _, destino, ruta = min(mejores)
+        return ruta, destino
+
+    def avisar_ruta_salida(self):
+        ruta, destino = self.ruta_a_salida()
+        if ruta is None:
+            self._agregar_toast("No hay salida abierta: completa «Cierre de caja» para abrir la terraza.")
+        else:
+            lugar = "el lobby" if destino == "lobby" else "la terraza"
+            self._agregar_toast(f"Ruta a la salida por {lugar}: {len(ruta) - 1} tramos.")
+        return ruta
 
     def encargo_en(self, sala):
         """Encargo de la sala, o None si la sala no tiene (nunca lanza excepción)."""
@@ -787,6 +870,8 @@ class Partida:
                 return False
             mision.paso = accion["paso"]
             mision.completada = False
+            # Deshacer revierte los efectos en el mundo; la hora y el toque de queda no.
+            revertir_cambios(self.estado_mundo, accion.get("cambios", []))
             accion["estacion"]["usado"] = False
             self.inventario.agregar(crear_objeto(accion["objeto"]))
             self._agregar_toast(f"Deshaces: recuperas {crear_objeto(accion['objeto'])['titulo']}; "
@@ -919,7 +1004,11 @@ class Partida:
     def _avanzar_minutos(self, minutos):
         """Avanza el reloj minuto a minuto y dispara los avisos que toquen."""
         for _ in range(minutos):
+            antes = self.estado_mundo["toque_queda_activo"]
             avanzar_tiempo(self.estado_mundo, 1)
+            if self.estado_mundo["toque_queda_activo"] and not antes:
+                self._agregar_toast("Toque de queda: el lobby cerró. Sal por la terraza.")
+                self.avisar_ruta_salida()
             for evento in self.eventos.eventos_listos(self.estado_mundo["hora_actual_min"]):
                 self._agregar_toast(evento.datos["texto"])
         if not self.terminado and self.estado_mundo["hora_actual_min"] >= self.hora_limite:
@@ -986,7 +1075,7 @@ class Partida:
         if not existe_sala(self.torre, destino):
             self._log(f"La sala «{destino}» no existe en la Torre.")
             return False
-        if not estan_conectadas(self.torre, actual, destino):
+        if destino not in self.grafo_torre.vecinos(actual):
             self._log(f"No hay paso directo de {actual} a {destino}: no están conectadas.")
             return False
         self.sala_torre = destino
@@ -1151,7 +1240,8 @@ class Partida:
             "mover": "Elige una sala:",
             "soltar": "¿Qué objeto sueltas?:",
             "deshacer_varias": "¿Cuántas acciones deshaces?:",
-        }[self.menu_torre]
+            "ruta": "¿A qué sala quieres llegar?:",
+        }.get(self.menu_torre, "Opción:")
 
     def torre_ir_a_puerta(self, numero):
         """Clic en una puerta: equivale a escribir 1 (Moverse) y su número."""
@@ -1184,6 +1274,8 @@ class Partida:
             self._opcion_mover(texto)
         elif self.menu_torre == "soltar":
             self._opcion_soltar(texto)
+        elif self.menu_torre == "ruta":
+            self._opcion_ruta(texto)
         elif self.menu_torre == "deshacer_varias":
             self._opcion_deshacer_varias(texto)
 
@@ -1194,7 +1286,10 @@ class Partida:
             return
         if opcion == 1:
             conectadas = salas_conectadas(self.torre, self.sala_torre)
-            self.opciones_submenu = [("sala", s) for s in conectadas]
+            atajos = sorted(self.grafo_torre.vecinos(self.sala_torre) - set(conectadas))
+            self.opciones_submenu = [("sala", s) for s in conectadas + atajos]
+            if atajos:
+                self._log("Atajo disponible: " + ", ".join(atajos) + ".")
             if self.sala_torre == self.torre["raiz"]:
                 self.opciones_submenu.append(("gradas", "Bajar por las gradas al campus"))
             self.opciones_submenu.append(("cancelar", "Cancelar"))
@@ -1235,6 +1330,28 @@ class Partida:
             self._log("Inventario: " + (", ".join(o["titulo"] for o in self.inventario.objetos) or "vacío") +
                       f" ({len(self.inventario.objetos)}/{self.inventario.capacidad_maxima}).")
             self.pedir_inventario = True
+        elif opcion == 10:
+            self._log("Escribe el nombre de la sala a la que quieres llegar (ESC cancela).")
+            self.menu_torre = "ruta"
+
+    def _opcion_ruta(self, texto):
+        """BFS en el grafo de la Torre (con atajos) hasta la sala escrita."""
+        if not texto:
+            self._log("Escribe el nombre de una sala (ESC cancela).")
+            return None
+        sala = buscar_sala(self.torre, texto)
+        if sala is None:
+            self._log(f"La sala «{texto}» no existe en la Torre.")
+            return None
+        self.menu_torre = "principal"
+        ruta = self.grafo_torre.bfs_ruta(self.sala_torre, sala)
+        if ruta is None:
+            self._log(f"No hay ruta de {self.sala_torre} a {sala}.")
+        elif len(ruta) == 1:
+            self._log(f"Ya estás en {sala}.")
+        else:
+            self._log(f"Ruta más corta ({len(ruta) - 1} pasos): " + " → ".join(ruta))
+        return ruta
 
     def _opcion_mover(self, texto):
         try:
@@ -1390,7 +1507,10 @@ class Partida:
             # Salidas del campus
             for sid, sdata in SALIDAS.items():
                 if punto_en_rect(self.jugador.x, self.jugador.y, sdata["trigger"]):
-                    if self.encargos_completos():
+                    if not self.salida_abierta(sid):
+                        self._agregar_toast(f"{sdata['mensaje']}: la puerta está cerrada.")
+                        self.avisar_ruta_salida()
+                    elif self.encargos_completos():
                         self.mision.completar()
                         self._terminar(True, f"Saliste del campus ({sdata['mensaje']}).")
                     else:
@@ -1456,6 +1576,9 @@ class Partida:
         if mision.completada or paso < mision.paso:
             self._agregar_toast("Esta estación ya está completada.")
             return False
+        if not mision.desbloqueada():
+            self._agregar_toast(f"Bloqueada: primero completa «{mision.padre.titulo}».")
+            return False
         if paso != mision.paso:
             self._agregar_toast("Primero: " + mision.objetivo_actual + ".")
             return False
@@ -1468,12 +1591,14 @@ class Partida:
             self.inventario.usar(requiere)
         item["usado"] = True
         mision.paso += 1
-        if mision.paso == len(mision.pasos):
-            mision.completar()
+        cambios = []
         self._agregar_toast(item["mensaje"])
+        if mision.paso == len(mision.pasos):
+            cambios = self._completar_encargo(mision)
         if requiere:
             self._registrar("usar", f"{crear_objeto(requiere)['titulo']} en {NOMBRES[self.sala_interior]}",
-                            objeto=requiere, sala=self.sala_interior, paso=paso, estacion=item)
+                            objeto=requiere, sala=self.sala_interior, paso=paso, estacion=item,
+                            cambios=cambios)
         return True
 
     def soltar_objeto(self):
@@ -1558,9 +1683,9 @@ class Partida:
                 return
 
             # Auto victoria al pisar salida con misiones OK
-            for sdata in SALIDAS.values():
+            for sid, sdata in SALIDAS.items():
                 if punto_en_rect(self.jugador.x, self.jugador.y, sdata["trigger"]):
-                    if self.encargos_completos():
+                    if self.encargos_completos() and self.salida_abierta(sid):
                         self.mision.completar()
                         self._terminar(True, f"Saliste del campus ({sdata['mensaje']}).")
                         return
@@ -1675,6 +1800,7 @@ class Partida:
         completadas = self.encargos_hechos()
         tesoros = self.tesoros_en_mochila()
         puntos = completadas * 100 + tesoros * PUNTOS_POR_TESORO
+        puntos += recompensa_rama(self.mision)   # postorden: recompensas del árbol
         if self.gano:
             minutos_restantes = max(0, self.hora_limite - self.estado_mundo["hora_actual_min"])
             puntos += minutos_restantes * 5
@@ -1686,7 +1812,17 @@ class Partida:
             "tesoros": tesoros,
             "resultado": "Victoria" if self.gano else "Expulsado",
             "hora_final": formatear_hora(self.estado_mundo["hora_actual_min"]),
+            "etapa": self.etapa_alcanzada(),
+            "mundo": resumen(self.estado_mundo),
         }
+
+    def etapa_alcanzada(self):
+        """Por niveles: la etapa más profunda del árbol con algún encargo hecho."""
+        etapa = 0
+        for nivel, misiones in enumerate(por_niveles(self.mision)):
+            if nivel and any(m.completada for m in misiones):
+                etapa = nivel
+        return etapa
 
 
 def dibujar_objetos_mundo(pantalla, objetos_mundo, jugador_pos, tiempo, camara):

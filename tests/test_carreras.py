@@ -55,7 +55,8 @@ class CarreraTests(unittest.TestCase):
         self.assertEqual(inicio.manejar_evento(clic(inicio.botones_inicio()[2].center)),'salir')
 
     def test_terminal_respeta_orden_y_alcance(self):
-        p=self.partida('computacion'); p._aplicar_entrar('r101')
+        p=self.partida('computacion'); p.encargo_en('biblioteca').completar()  # dependencia CP3
+        p._aplicar_entrar('r101')
         p.jugador.x,p.jugador.y=(560,196)
         self.assertFalse(p.habilidad.usar(p))
         self.assertEqual(p.habilidad.recarga,0)
@@ -80,7 +81,9 @@ class CarreraTests(unittest.TestCase):
         self.assertFalse(next(o for o in p.objetos_mundo if o['nombre']=='usb')['recogido'])
 
     def test_robot_no_omite_seguridad_o_usb(self):
-        p=self.partida('mecatronica'); p._aplicar_entrar('lab_siemens')
+        p=self.partida('mecatronica')
+        p.encargo_en('biblioteca').completar(); p.encargo_en('r101').completar()  # dependencias CP3
+        p._aplicar_entrar('lab_siemens')
         p.jugador.x,p.jugador.y=(400,208)
         self.assertFalse(p.habilidad.usar(p)); self.assertEqual(p.mision_lab.paso,0)
         p.jugador.x,p.jugador.y=(768,472); p.interactuar()

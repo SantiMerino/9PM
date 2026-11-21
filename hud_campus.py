@@ -130,79 +130,129 @@ def dibujar_mapa(s,p):
     texto(s,'Blanco: tú   Dorado: pendiente   Verde con palomita: completado',(28,604),CREAM,13)
     texto(s,'M / ESC cerrar · PAUSA',(694,604),TEAL,13)
 
+def recortar(cadena,ancho,size):
+    """Corta el texto para que quepa en `ancho` px y agrega '…' si sobró."""
+    cadena=str(cadena or '')
+    if fuente(size).size(cadena)[0]<=ancho: return cadena
+    while cadena and fuente(size).size(cadena+'…')[0]>ancho: cadena=cadena[:-1]
+    return cadena.rstrip()+'…'
+
+def _filas_preorden(raiz):
+    """Preorden (nivel, misión): se usa si misiones.py aún no trae lineas_preorden."""
+    filas=[]; pila=[(0,raiz)]
+    while pila:
+        nivel,nodo=pila.pop(); filas.append((nivel,nodo))
+        pila.extend((nivel+1,h) for h in reversed(getattr(nodo,'hijas',())))
+    return filas
+
+def _niveles(raiz):
+    """Recorrido por niveles: se usa si misiones.py aún no trae por_niveles."""
+    niveles=[]; actual=[raiz]
+    while actual:
+        niveles.append(actual)
+        actual=[h for nodo in actual for h in getattr(nodo,'hijas',())]
+    return niveles
+
+def _encargos(p):
+    encargos=getattr(p,'encargos',None)
+    if encargos is not None: return list(encargos)
+    return [m for _,m in _filas_preorden(p.mision)[1:] if getattr(m,'ubicacion',None)]
+
+def _estado_mision(m,p,encargos):
+    """'completada', 'disponible' o 'bloqueada' según el árbol de dependencias."""
+    if getattr(m,'completada',False): return 'completada'
+    if m is p.mision and m not in encargos:
+        # La raíz es la salida: se abre cuando ya no queda ningún encargo.
+        return 'disponible' if all(getattr(e,'completada',False) for e in encargos) else 'bloqueada'
+    desbloqueada=getattr(m,'desbloqueada',None)
+    if callable(desbloqueada): return 'disponible' if desbloqueada() else 'bloqueada'
+    padre=getattr(m,'padre',None)  # sin contrato CP3 las misiones no dependen entre sí
+    return 'bloqueada' if padre is not None and not getattr(padre,'completada',False) else 'disponible'
+
 def dibujar_diario(s,p):
-    """Dibuja la bitácora como árbol, tolerando el contrato CP3 pendiente."""
+    """Bitácora: el árbol de misiones en preorden, con sangría y conectores."""
     overlay=pygame.Surface((960,640),pygame.SRCALPHA); overlay.fill((8,20,30,235)); s.blit(overlay,(0,0))
     texto(s,'BITÁCORA DE LA NOCHE',(28,22),CREAM,24)
-    texto(s,'Las misiones se desbloquean al completar su misión anterior.',(28,58),(156,187,177),13)
-    encargos=getattr(p,'encargos',None)
-    if encargos is None:
-        encargos=[]
-        pendientes=[p.mision]
-        while pendientes:
-            actual=pendientes.pop()
-            if actual is not p.mision and getattr(actual,'ubicacion',None): encargos.append(actual)
-            pendientes.extend(reversed(getattr(actual,'hijas',())))
+    texto(s,'Cada misión se desbloquea al completar la misión de la que depende.',(28,58),(156,187,177),13)
+    encargos=_encargos(p)
     hechas=sum(bool(getattr(m,'completada',False)) for m in encargos); total=len(encargos)
     texto(s,f'{hechas}/{total} COMPLETADAS',(676,20),VERDE if hechas else CREAM,16)
     pygame.draw.rect(s,INK,(676,44,256,12)); pygame.draw.rect(s,(52,72,80),(678,46,252,8))
     if total: pygame.draw.rect(s,VERDE,(678,46,int(252*hechas/total),8))
 
-    # CP3 añade estos recorridos. El fallback mantiene utilizable la bitácora
-    # mientras se integran los cambios de misiones.py en main.
     try:
-        from misiones import lineas_preorden, por_niveles
+        from misiones import lineas_preorden
         filas=lineas_preorden(p.mision)
+    except ImportError:
+        filas=_filas_preorden(p.mision)
+    try:
+        from misiones import por_niveles
         niveles=por_niveles(p.mision)
     except ImportError:
-        filas=[]; niveles=[]
-        def recorrer(nodo,nivel=0):
-            filas.append((nivel,nodo))
-            for hija in getattr(nodo,'hijas',()): recorrer(hija,nivel+1)
-        recorrer(p.mision)
-        cola=[p.mision]
-        while cola:
-            nivel_actual=[]; siguiente=[]
-            for nodo in cola:
-                nivel_actual.extend(getattr(nodo,'hijas',()))
-                siguiente.extend(getattr(nodo,'hijas',()))
-            if nivel_actual: niveles.append(nivel_actual)
-            cola=siguiente
+        niveles=_niveles(p.mision)
 
-    filas=filas[:14]
-    for i,(nivel,m) in enumerate(filas):
-        col=i//7; row=i%7; x=28+col*464; y=91+row*67
-        x+=min(nivel,2)*18
-        ancho=440-min(nivel,2)*18
-        completada=bool(getattr(m,'completada',False))
-        desbloqueada=getattr(m,'desbloqueada',None)
-        disponible=bool(desbloqueada()) if callable(desbloqueada) else (m is p.mision or (m in encargos and (m is next((e for e in encargos if not getattr(e,'completada',False)),None))))
-        color_fondo=VERDE_OSCURO if completada else ((34,59,69) if disponible else (31,43,49))
-        color_borde=VERDE if completada else ((84,118,123) if disponible else (63,76,80))
-        caja(s,(x,y,ancho,58),color_fondo,color_borde)
-        pygame.draw.line(s,(105,139,139),(x+7,y+1),(x+7,y+10),1)
-        if completada:
-            pygame.draw.rect(s,VERDE,(x,y,4,58)); dibujar_check(s,x+13,y+8,12)
-            color_texto=(196,246,206); estado='COMPLETADA'
-        elif disponible:
-            texto(s,f'{getattr(m,"paso",0)}/{len(getattr(m,"pasos",()))}',(x+12,y+7),DORADO,11)
-            color_texto=CREAM; estado='DISPONIBLE'
+    MAX_FILAS,ALTO,Y0,SANGRIA=14,30,88,22
+    visibles=filas[:MAX_FILAS]
+    xs=[28+nivel*SANGRIA for nivel,_ in visibles]
+    ys=[Y0+i*(ALTO+4) for i in range(len(visibles))]
+    # Conectores primero (├─ / └─): de cada hija a la fila de su madre.
+    ultima_en_nivel={}
+    for i,(nivel,_) in enumerate(visibles):
+        madre=ultima_en_nivel.get(nivel-1)
+        if madre is not None:
+            cx=xs[madre]+10; cy=ys[i]+ALTO//2
+            pygame.draw.line(s,(84,118,123),(cx,ys[madre]+ALTO),(cx,cy),2)
+            pygame.draw.line(s,(84,118,123),(cx,cy),(xs[i],cy),2)
+        ultima_en_nivel[nivel]=i
+        for n in [k for k in ultima_en_nivel if k>nivel]: del ultima_en_nivel[n]
+
+    for i,(nivel,m) in enumerate(visibles):
+        x,y=xs[i],ys[i]; ancho=932-x
+        estado=_estado_mision(m,p,encargos)
+        if estado=='completada':
+            caja(s,(x,y,ancho,ALTO),VERDE_OSCURO,VERDE); pygame.draw.rect(s,VERDE,(x,y,4,ALTO))
+            dibujar_check(s,x+10,y+9,12)
+            color=(196,246,206); detalle='completada'; color_detalle=(150,208,166)
+        elif estado=='disponible':
+            caja(s,(x,y,ancho,ALTO),(34,59,69),(84,118,123))
+            pasos=len(getattr(m,'pasos',()) or ())
+            if pasos: texto(s,f'{getattr(m,"paso",0)}/{pasos}',(x+8,y+9),DORADO,11)
+            else: pygame.draw.rect(s,DORADO,(x+12,y+11,8,8))
+            obj=getattr(m,'objetivo_actual','')
+            color=CREAM; detalle=obj() if callable(obj) else obj; color_detalle=(169,195,181)
         else:
-            pygame.draw.arc(s,(153,166,164),(x+14,y+6,10,11),0,math.pi,2)
-            pygame.draw.rect(s,(153,166,164),(x+12,y+12,14,11),1)
-            color_texto=(153,166,164); estado='BLOQUEADA'
+            caja(s,(x,y,ancho,ALTO),(31,43,49),(63,76,80))
+            gris=(153,166,164)
+            pygame.draw.arc(s,gris,(x+12,y+5,10,11),0,math.pi,2)
+            pygame.draw.rect(s,gris,(x+10,y+11,14,11),1)
+            padre=getattr(m,'padre',None)
+            color=gris; color_detalle=gris
+            detalle=f'bloqueada · primero: {padre.titulo}' if getattr(padre,'titulo',None) else 'bloqueada'
         ubicacion=getattr(m,'ubicacion',None)
         nombre=NOMBRES.get(ubicacion,ubicacion or 'MISIÓN PRINCIPAL').upper()
-        titulo_mision=f'{nombre} / {getattr(m,"titulo","")}'
-        texto(s,lineas(titulo_mision,ancho-76,11)[0],(x+34,y+7),color_texto,11)
-        objetivo_actual=getattr(m,'objetivo_actual','') if disponible else estado.lower()
-        texto(s,lineas(str(objetivo_actual),ancho-48,10)[0],(x+12,y+31),(169,195,181) if disponible else color_texto,10)
+        ancho_titulo=max(80,int((ancho-44)*.48))
+        texto(s,recortar(f'{nombre} / {getattr(m,"titulo","")}',ancho_titulo,11),(x+36,y+9),color,11)
+        x_det=x+44+ancho_titulo
+        texto(s,recortar(detalle,932-x_det-10,10),(x_det,y+10),color_detalle,10)
+    if len(filas)>MAX_FILAS:
+        texto(s,f'+{len(filas)-MAX_FILAS} misiones más',(704,574),(156,187,177),11)
 
-    etapa=next((i+1 for i,nivel in enumerate(niveles) if any(not getattr(m,'completada',False) for m in nivel)),len(niveles))
-    texto(s,f'ETAPA {etapa} DE {max(len(niveles),1)}',(28,572),DORADO,14)
-    recompensa=getattr(p,'recompensa_total',None)
-    if callable(recompensa): texto(s,f'RECOMPENSA ACUMULADA  {recompensa()}',(300,572),TEAL,13)
-    elif recompensa is not None: texto(s,f'RECOMPENSA ACUMULADA  {recompensa}',(300,572),TEAL,13)
+    # Etapas = niveles del árbol sin la raíz; la salida (raíz) es la última etapa.
+    etapas=[[m for m in nivel if m is not p.mision] for nivel in niveles]
+    etapas=[e for e in etapas if e]
+    if p.mision not in encargos and etapas: etapas.append([p.mision])
+    etapa=next((i+1 for i,e in enumerate(etapas) if any(not getattr(m,'completada',False) for m in e)),len(etapas))
+    texto(s,f'ETAPA {max(etapa,1)} DE {max(len(etapas),1)}',(28,572),DORADO,14)
+
+    todas=[m for _,m in filas]
+    if any(hasattr(m,'recompensa') for m in todas):
+        acumulada=sum(getattr(m,'recompensa',0) or 0 for m in todas if getattr(m,'completada',False))
+        try:
+            from misiones import recompensa_rama
+            maxima=recompensa_rama(p.mision)
+        except ImportError:
+            maxima=sum(getattr(m,'recompensa',0) or 0 for m in todas)
+        texto(s,f'RECOMPENSA ACUMULADA  {acumulada}/{maxima}',(220,572),TEAL,13)
     texto(s,'J / ESC cerrar · PAUSA',(704,604),TEAL,13)
 
 

@@ -110,7 +110,7 @@ class CampusTests(unittest.TestCase):
         p=Partida(crear_mapa_universidad(),{})
         p.inventario.agregar(crear_objeto('libro'))
         p.inventario.agregar(crear_objeto('usb'))
-        for nombre in PUERTAS:
+        for nombre in [m.ubicacion for m in p.encargos]:  # preorden: respeta dependencias
             p._aplicar_entrar(nombre)
             sala=p.interior_data
             reach=alcanzables(sala['spawn'],lambda x,y:not colision_interior(sala,x,y),sala['ancho'],sala['alto'])
@@ -131,7 +131,9 @@ class CampusTests(unittest.TestCase):
         p.interactuar()
         self.assertTrue(p.gano)
     def test_orden_y_requisito_siemens(self):
-        p=Partida(crear_mapa_universidad(),{}); p._aplicar_entrar('lab_siemens')
+        p=Partida(crear_mapa_universidad(),{})
+        p.encargo_en('biblioteca').completar(); p.encargo_en('r101').completar()  # dependencias CP3
+        p._aplicar_entrar('lab_siemens')
         p.jugador.x,p.jugador.y=(770,144); p.interactuar()
         self.assertEqual(p.mision_lab.paso,0)
         for xy in ((768,472),(328,208)):

@@ -266,6 +266,12 @@ class IntegracionTests(unittest.TestCase):
         p.estado_mundo['toque_queda_activo'] = True
         p.posiciones_torre[E.VIGILANTE] = sala
         p._revisar_encuentros()
+        # Desde las mejoras, el vigilante abre una batalla de argumentos; si la pierdes
+        # después del toque de queda te saca del campus, igual que antes.
+        self.assertIsNotNone(p.batalla)
+        self.assertTrue(p.batalla.toque_queda)
+        p.batalla.resultado, p.batalla.fase = 'perdiste', 'fin'
+        p.terminar_batalla()
         self.assertTrue(p.terminado)
         self.assertFalse(p.gano)
 
@@ -303,6 +309,7 @@ class IntegracionTests(unittest.TestCase):
         def crear(*args, **kwargs):
             p = Partida(*args, **kwargs)
             p._aplicar_entrar_torre()
+            p.pausa_vigilante = 99   # que el vigilante no abra una batalla y robe el teclado
             instancias.append(p)
             return p
 

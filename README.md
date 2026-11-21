@@ -181,14 +181,26 @@ partida y se excluyen de BFS en ambos sentidos.
 
 ```text
                          terraza_n
-                             |
-oeste_n — terraza — norte — este_c — este_s — sur — lobby_acceso — lobby_frente — lobby
-   |        |                       |       |                         puerta
-   |        |                       |       |
-oeste_m — jardin_o — jardin_c ————┘       oeste_s — aulas_sur
-   |                    |                    |
-aulas_norte           este_c              sur
+                             ‖  (puerta 1)
+           oeste_n ───── terraza ───── norte
+              │                          │
+aulas_norte   │                          │
+     │        │                          │
+  oeste_m ─ jardin_o ─ jardin_c ────── este_c
+     │                                   │
+  oeste_s ─ aulas_sur                  este_s
+     │                                   │
+     └──────────────── sur ──────────────┘
+                        │
+                   lobby_acceso
+                        │
+                   lobby_frente
+                        ‖  (puerta 2)
+                      lobby
 ```
+
+`‖` marca las dos puertas que el diccionario del mundo puede cerrar. Cada `─` o
+`│` es una arista no dirigida; el dibujo tiene las mismas 17 de la lista de abajo.
 
 Conexiones del modelo (los IDs son los del juego):
 
@@ -282,11 +294,28 @@ finales se documentarán aquí junto a las pruebas de integración.
 
 ### Evidencia de ejecución
 
-La evidencia del Checkpoint 3 se agregará después de integrar las ramas de
-grafos, misiones y estado del mundo. Debe incluir capturas de la bitácora en
-árbol, una ruta alternativa, una misión bloqueada y una opción inválida, además
-de la salida de consola de las demos y del conjunto completo de pruebas.
-Las capturas de Checkpoint 2 ya disponibles están en [`docs/capturas/`](docs/capturas).
+**Bitácora en árbol** (`python capturar_juego.py` → `docs/capturas/cp3_01_bitacora_arbol.png`).
+La bitácora recorre las misiones en preorden y dibuja cada una con sangría según
+su nivel y un conector hacia la misión de la que depende. Una misión completada
+sale en verde con palomita, una disponible muestra su paso actual y una bloqueada
+sale en gris con candado e indica qué misión falta primero. Abajo se ven la etapa
+actual (recorrido por niveles) y, cuando las misiones tienen recompensa, la
+recompensa acumulada.
+
+![Bitácora en árbol](docs/capturas/cp3_01_bitacora_arbol.png)
+
+Pruebas (`python -m unittest discover -s tests`) en esta rama:
+
+```text
+Ran 77 tests in 2.607s
+
+OK
+```
+
+Pendiente al integrar las ramas de grafo, misiones y estado del mundo: las
+capturas `cp3_02_ruta_alternativa.png`, `cp3_03_mision_bloqueada.png` y
+`cp3_04_opcion_invalida.png`, y la salida de consola de sus demos.
+Las capturas del Checkpoint 2 están en [`docs/capturas/`](docs/capturas).
 
 ### Aporte de cada integrante (Checkpoint 3)
 

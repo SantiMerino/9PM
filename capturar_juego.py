@@ -51,7 +51,7 @@ for nombre in main.PUERTAS:
     main.dibujar_hud(s,p,fuentes); main.BotonInventario((782,8,160,40)).dibujar(s,0,6,False)
     pygame.image.save(s,out/(nombre+'.png'))
 p._aplicar_salir(); dibujar_mapa(s,p); pygame.image.save(s,out/'mapa.png')
-dibujar_diario(s,p); pygame.image.save(s,out/'bitacora.png')
+dibujar_diario(s,p); pygame.image.save(s,out/'bitacora.png'); pygame.image.save(s,out/'cp3_01_bitacora_arbol.png')
 p.inventario.agregar(main.crear_objeto('libro')); p.inventario.agregar(main.crear_objeto('usb'))
 panel=main.PanelInventario(960,640); panel.alternar(); panel.actualizar(1,(-1,-1)); panel.dibujar(s,p.inventario)
 pygame.image.save(s,out/'inventario.png')

@@ -200,5 +200,45 @@ class TestPreorden(unittest.TestCase):
         self.assertEqual(M.texto_arbol(None), '')
 
 
+class TestNivelesYRecompensas(unittest.TestCase):
+    def setUp(self):
+        self.raiz = M.crear_arbol_misiones_juego()
+
+    def test_por_niveles(self):
+        # Prueba 8
+        niveles = M.por_niveles(self.raiz)
+        self.assertEqual([len(n) for n in niveles], [1, 1, 3, 5, 4])
+        self.assertEqual(niveles[0], [self.raiz])
+        self.assertEqual([m.ubicacion for m in niveles[2]], ['sala_reuniones', 'r101', 'cafeteria'])
+        self.assertEqual([m.ubicacion for m in niveles[4]],
+                         ['r104', 'lab_kite', 'lab_click', 'lab_spark'])
+        for i, nivel in enumerate(niveles):
+            self.assertTrue(all(m.nivel() == i for m in nivel))
+        self.assertEqual(M.por_niveles(None), [])
+
+    def test_recompensa_rama(self):
+        # Prueba 9
+        total = sum(m.recompensa for m in M.todas_las_misiones(self.raiz))
+        self.assertEqual(total, 380)
+        self.assertEqual(M.recompensa_rama(self.raiz), 0)
+        self.assertEqual(M.recompensa_rama(self.raiz, solo_completadas=False), total)
+        for mision in M.todas_las_misiones(self.raiz):
+            M.completar_por_sala(self.raiz, mision.ubicacion)
+        self.assertEqual(M.recompensa_rama(self.raiz), total)
+        self.assertEqual(M.recompensa_rama(None), 0)
+
+    def test_recompensa_de_una_rama_parcial(self):
+        for sala in ('biblioteca', 'cafeteria', 'bodega'):
+            M.completar_por_sala(self.raiz, sala)
+        cafeteria = M.buscar_por_sala(self.raiz, 'cafeteria')
+        self.assertEqual(M.recompensa_rama(cafeteria), 20 + 30)
+        self.assertEqual(M.recompensa_rama(cafeteria, solo_completadas=False), 20 + 30 + 40)
+        self.assertEqual(M.recompensa_rama(self.raiz), 10 + 20 + 30)
+
+    def test_demo_de_consola(self):
+        ok, mensaje = M.completar_por_sala(self.raiz, 'lab_siemens')
+        self.assertEqual((ok, mensaje), (False, 'Primero completa «Entrega digital».'))
+
+
 if __name__ == '__main__':
     unittest.main()

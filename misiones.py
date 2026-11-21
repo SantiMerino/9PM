@@ -3,7 +3,22 @@
 Cada misión tiene UN solo padre (``padre``) y una lista de hijas (``hijas``),
 así que el conjunto de misiones es un árbol y no un grafo: no hay ciclos y
 cada encargo depende de un único encargo anterior.
+
+Recorridos y para qué los usa el juego (n = cantidad de misiones)
+-----------------------------------------------------------------
+| Función            | Recorrido   | Uso en el juego                           | Big O |
+|--------------------|-------------|-------------------------------------------|-------|
+| lineas_preorden    | preorden    | bitácora con sangría                      | O(n)  |
+| todas_las_misiones | preorden    | lista plana de encargos para main.py      | O(n)  |
+| texto_arbol        | preorden    | árbol en consola con [x] / [ ] / bloqueo  | O(n)  |
+| por_niveles        | por niveles | etapa de la noche en la que va el jugador | O(n)  |
+| recompensa_rama    | postorden   | puntaje final y valor de cada rama        | O(n)  |
+| buscar_por_sala    | preorden    | misión de la estación del jugador         | O(n)  |
+| disponibles        | preorden    | encargos que se pueden hacer ya           | O(n)  |
+Cada recorrido es O(n) porque visita cada misión una sola vez.
 """
+from collections import deque
+
 
 
 class Mision:
@@ -309,3 +324,53 @@ def texto_arbol(raiz):
             marca = '[bloqueada]'
         renglones.append(f"{'  ' * nivel}{marca} {mision.titulo} ({mision.ubicacion})")
     return '\n'.join(renglones)
+
+
+def por_niveles(raiz):
+    """Recorrido POR NIVELES (BFS con una cola deque).
+
+    Devuelve [[raiz], [biblioteca], [sala_reuniones, r101, cafeteria], ...]:
+    cada lista es una etapa de la noche, así el juego puede mostrar en qué
+    etapa va el jugador y qué hay disponible en cada una. O(n).
+    """
+    if not isinstance(raiz, Mision):
+        return []
+    niveles = []
+    cola = deque([(raiz, 0)])
+    vistas = {id(raiz)}
+    while cola:
+        mision, nivel = cola.popleft()
+        if nivel == len(niveles):
+            niveles.append([])
+        niveles[nivel].append(mision)
+        for hija in mision.hijas:
+            if isinstance(hija, Mision) and id(hija) not in vistas:
+                vistas.add(id(hija))
+                cola.append((hija, nivel + 1))
+    return niveles
+
+
+def recompensa_rama(mision, solo_completadas=True):
+    """POSTORDEN: suma las recompensas de la rama que cuelga de `mision`.
+
+    Primero suma las hijas y al final el propio nodo. Con solo_completadas
+    (por defecto) cuenta solo lo ya hecho: es el puntaje final si se llama
+    con la raíz. Con solo_completadas=False dice cuánto vale la rama entera.
+    Devuelve 0 si `mision` no es válida. O(n).
+    """
+    if not isinstance(mision, Mision):
+        return 0
+    vistas = set()
+
+    def sumar(actual):
+        if not isinstance(actual, Mision) or id(actual) in vistas:
+            return 0
+        vistas.add(id(actual))
+        total = 0
+        for hija in actual.hijas:           # primero las hijas...
+            total += sumar(hija)
+        if actual.completada or not solo_completadas:
+            total += actual.recompensa      # ...y después el nodo
+        return total
+
+    return sumar(mision)

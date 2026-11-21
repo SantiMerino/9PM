@@ -1,21 +1,101 @@
-"""Misiones del campus: árbol y progreso ordenado por estaciones físicas."""
+"""Misiones del campus: árbol y progreso ordenado por estaciones físicas.
+
+Cada misión tiene UN solo padre (``padre``) y una lista de hijas (``hijas``),
+así que el conjunto de misiones es un árbol y no un grafo: no hay ciclos y
+cada encargo depende de un único encargo anterior.
+
+Recorridos y para qué los usa el juego (n = cantidad de misiones)
+-----------------------------------------------------------------
+| Función            | Recorrido   | Uso en el juego                           | Big O |
+|--------------------|-------------|-------------------------------------------|-------|
+| lineas_preorden    | preorden    | bitácora con sangría                      | O(n)  |
+| todas_las_misiones | preorden    | lista plana de encargos para main.py      | O(n)  |
+| texto_arbol        | preorden    | árbol en consola con [x] / [ ] / bloqueo  | O(n)  |
+| por_niveles        | por niveles | etapa de la noche en la que va el jugador | O(n)  |
+| recompensa_rama    | postorden   | puntaje final y valor de cada rama        | O(n)  |
+| buscar_por_sala    | preorden    | misión de la estación del jugador         | O(n)  |
+| disponibles        | preorden    | encargos que se pueden hacer ya           | O(n)  |
+Cada recorrido es O(n) porque visita cada misión una sola vez.
+"""
+from collections import deque
+
+
+
 class Mision:
-    def __init__(self,titulo,descripcion,ubicacion=None,pasos=()):
-        self.titulo=titulo
-        self.descripcion=descripcion
-        self.ubicacion=ubicacion
-        self.completada=False
-        self.hijas=[]
-        self.pasos=tuple(pasos)
-        self.paso=0
-    def agregar_submision(self,mision): self.hijas.append(mision)
-    def completar(self): self.completada=True
-    def todas_completas(self): return self.completada and all(h.todas_completas() for h in self.hijas)
+    def __init__(self, titulo, descripcion, ubicacion=None, pasos=(),
+                 recompensa=0, efecto=None, es_raiz=False):
+        self.titulo = titulo
+        self.descripcion = descripcion
+        self.ubicacion = ubicacion      # id de la sala donde se hace el encargo
+        self.es_raiz = es_raiz          # la raíz es un contenedor, no un encargo
+        self.completada = False
+        self.hijas = []
+        self.padre = None               # un solo padre -> es árbol, no grafo
+        self.pasos = tuple(pasos)
+        self.paso = 0
+        self.recompensa = recompensa    # puntos al completarla
+        self.efecto = efecto            # dict para el estado del mundo o None
+
+    def __repr__(self):
+        return f"Mision({self.titulo!r}, {self.ubicacion!r})"
+
+    # La raíz contenedora no se completa a mano: está completada solo cuando
+    # todas sus descendientes lo están. Las demás guardan su propio valor.
+    @property
+    def completada(self):
+        if self.es_raiz:
+            return all(h.todas_completas() for h in self.hijas)
+        return self._completada
+
+    @completada.setter
+    def completada(self, valor):
+        self._completada = bool(valor)
+
+    def agregar_submision(self, mision):
+        """Cuelga `mision` debajo de esta y le asigna su padre. O(h).
+
+        Devuelve la misión agregada, o None si no se pudo: si no es una
+        Mision, si ya tiene padre (tendría dos y dejaría de ser árbol) o si
+        es esta misma o una de sus ancestras (formaría un ciclo).
+        """
+        if not isinstance(mision, Mision) or mision.padre is not None:
+            return None
+        ancestra = self
+        while ancestra is not None:
+            if ancestra is mision:
+                return None
+            ancestra = ancestra.padre
+        mision.padre = self
+        self.hijas.append(mision)
+        return mision
+
+    def desbloqueada(self):
+        """True si se puede hacer ya: no tiene padre, su padre es la raíz o
+        su padre está completada. El juego lo revisa antes de dejar avanzar
+        un paso de la estación. O(1)."""
+        padre = self.padre
+        return (padre is None or padre.es_raiz or padre.padre is None
+                or padre.completada)
+
+    def nivel(self):
+        """0 para la raíz, 1 para sus hijas, etc. Sube por los padres. O(h)."""
+        nivel, actual = 0, self.padre
+        while actual is not None:
+            nivel, actual = nivel + 1, actual.padre
+        return nivel
+
+    def completar(self): self.completada = True
+
+    def todas_completas(self):
+        return self.completada and all(h.todas_completas() for h in self.hijas)
+
     def pendientes(self):
-        return ([] if self.completada else [self])+[p for h in self.hijas for p in h.pendientes()]
+        return ([] if self.completada else [self]) + [p for h in self.hijas for p in h.pendientes()]
+
     @property
     def objetivo_actual(self):
         return 'Completada' if self.completada else self.pasos[self.paso] if self.pasos else self.descripcion
+
 
 # Orden de los primeros tres conservado para las referencias de Partida.
 ENCARGOS = [
@@ -38,3 +118,259 @@ def crear_mision_principal():
     for sala,titulo,pasos in ENCARGOS:
         m.agregar_submision(Mision(titulo,' · '.join(pasos),sala,pasos))
     return m
+
+
+# ---------------------------------------------------------------------------
+# Árbol de misiones del juego (Checkpoint 3)
+# ---------------------------------------------------------------------------
+#
+# Salir del campus (lobby)  [raíz]
+# └── Préstamo de medianoche (biblioteca)
+#     ├── Una última firma (sala_reuniones)
+#     │   ├── Cálculo pendiente (r102)
+#     │   └── Última exposición (r105)
+#     │       └── Bitácora de física (r104)
+#     ├── Entrega digital (r101)
+#     │   ├── Puesta en marcha (lab_siemens)
+#     │   │   └── Prototipo listo (lab_kite)
+#     │   └── Redes conectadas (r103)
+#     │       └── Respaldo completo (lab_click)
+#     └── Cierre de caja (cafeteria)
+#         └── Todo en su lugar (bodega)
+#             └── Señal estable (lab_spark)
+#
+# Las dependencias salen del juego: con el libro de la biblioteca arranca la
+# noche, la USB de R101 se usa en el Lab Siemens, el profesor firma antes de
+# las entregas de aulas y la cafetería se cierra antes de ordenar la bodega.
+
+# (sala del encargo, sala del encargo del que depende). None = cuelga de la
+# raíz. Van en preorden para que cada padre exista antes que sus hijas.
+DEPENDENCIAS = [
+    ('biblioteca', None),
+    ('sala_reuniones', 'biblioteca'),
+    ('r102', 'sala_reuniones'),
+    ('r105', 'sala_reuniones'),
+    ('r104', 'r105'),
+    ('r101', 'biblioteca'),
+    ('lab_siemens', 'r101'),
+    ('lab_kite', 'lab_siemens'),
+    ('r103', 'r101'),
+    ('lab_click', 'r103'),
+    ('cafeteria', 'biblioteca'),
+    ('bodega', 'cafeteria'),
+    ('lab_spark', 'bodega'),
+]
+
+# Efecto en el diccionario del mundo al completar el encargo. Las tuplas de
+# puertas van ordenadas alfabéticamente (contrato con estado_mundo.py).
+EFECTOS = {
+    'biblioteca': {'apaga': 'biblioteca'},
+    'cafeteria': {'abre': ('terraza', 'terraza_n')},
+}
+
+# Recompensa = 10 puntos por nivel: nivel 1 = 10, nivel 2 = 20, ... nivel 4 = 40.
+# Los encargos más profundos valen más porque exigen completar toda su rama antes.
+RECOMPENSA_POR_NIVEL = 10
+
+
+def crear_arbol_misiones_juego():
+    """Arma el árbol de misiones con dependencias a partir de ENCARGOS.
+
+    Usa los mismos 13 encargos (títulos, salas y pasos) y los cuelga según
+    DEPENDENCIAS debajo de una raíz contenedora «Salir del campus». Cada
+    llamada crea objetos nuevos, así cada partida tiene su propio árbol.
+    Queda con 4 niveles debajo de la raíz. O(n).
+    """
+    raiz = Mision('Salir del campus',
+                  'Completa los encargos del primer nivel y sal por el lobby o la terraza.',
+                  'lobby', es_raiz=True)
+    datos = {sala: (titulo, pasos) for sala, titulo, pasos in ENCARGOS}
+    por_sala = {}
+    for sala, sala_padre in DEPENDENCIAS:
+        titulo, pasos = datos[sala]
+        efecto = EFECTOS.get(sala)
+        mision = Mision(titulo, ' · '.join(pasos), sala, pasos,
+                        efecto=dict(efecto) if efecto else None)
+        padre = raiz if sala_padre is None else por_sala[sala_padre]
+        padre.agregar_submision(mision)
+        mision.recompensa = RECOMPENSA_POR_NIVEL * mision.nivel()
+        por_sala[sala] = mision
+    return raiz
+
+
+def buscar_por_sala(raiz, sala):
+    """Encargo que se hace en `sala`, o None si no existe.
+
+    El juego la usa para saber qué misión corresponde a la estación en la
+    que está el jugador. Recorre en preorden y se detiene al encontrarla.
+    No devuelve la raíz: es un contenedor, no un encargo. O(n).
+    """
+    if not isinstance(raiz, Mision) or sala is None:
+        return None
+    vistas = set()
+
+    def visitar(mision):
+        if id(mision) in vistas:            # protege contra misiones repetidas
+            return None
+        vistas.add(id(mision))
+        if mision is not raiz and mision.ubicacion == sala:
+            return mision
+        for hija in mision.hijas:
+            encontrada = visitar(hija)
+            if encontrada is not None:
+                return encontrada
+        return None
+
+    return visitar(raiz)
+
+
+def disponibles(raiz):
+    """Encargos desbloqueados y sin completar: lo que el jugador puede hacer ya.
+
+    Si un encargo no está completado, todo lo que cuelga de él sigue
+    bloqueado, así que no hace falta bajar por esa rama. O(n) en el peor caso.
+    """
+    if not isinstance(raiz, Mision):
+        return []
+    resultado, vistas = [], set()
+
+    def visitar(mision):
+        if id(mision) in vistas:
+            return
+        vistas.add(id(mision))
+        if mision is not raiz and not mision.completada:
+            if mision.desbloqueada():
+                resultado.append(mision)
+            return                          # sus hijas siguen bloqueadas
+        for hija in mision.hijas:
+            visitar(hija)
+
+    visitar(raiz)
+    return resultado
+
+
+def completar_por_sala(raiz, sala):
+    """Completa el encargo de `sala` si sus dependencias lo permiten.
+
+    Devuelve (True, hijas_que_se_desbloquean) o (False, "mensaje claro") si
+    la sala no existe, si ya estaba completada o si está bloqueada. Es para
+    la lógica y las pruebas: en el juego las estaciones avanzan `paso` y
+    llaman a mision.completar(). O(n) por la búsqueda.
+    """
+    if not isinstance(raiz, Mision):
+        return False, 'No hay un árbol de misiones.'
+    if raiz.es_raiz and sala is not None and sala == raiz.ubicacion:
+        return False, f'«{raiz.titulo}» se completa sola al terminar todos los encargos.'
+    mision = buscar_por_sala(raiz, sala)
+    if mision is None:
+        return False, f'No hay ningún encargo en «{sala}».'
+    if mision.completada:
+        return False, f'«{mision.titulo}» ya estaba completada.'
+    if not mision.desbloqueada():
+        return False, f'Primero completa «{mision.padre.titulo}».'
+    mision.completar()
+    return True, [h for h in mision.hijas if not h.completada]
+
+
+# ---------------------------------------------------------------------------
+# Recorridos con propósito
+# ---------------------------------------------------------------------------
+
+def lineas_preorden(raiz):
+    """PREORDEN con nivel: [(0, raiz), (1, biblioteca), (2, sala_reuniones), ...].
+
+    Primero el nodo y después sus hijas de izquierda a derecha. La bitácora
+    lo usa para dibujar el árbol con sangría (más nivel = más sangría).
+    Visita cada misión una sola vez. O(n).
+    """
+    lineas, vistas = [], set()
+
+    def visitar(mision, nivel):
+        if not isinstance(mision, Mision) or id(mision) in vistas:
+            return
+        vistas.add(id(mision))
+        lineas.append((nivel, mision))
+        for hija in mision.hijas:
+            visitar(hija, nivel + 1)
+
+    visitar(raiz, 0)
+    return lineas
+
+
+def todas_las_misiones(raiz):
+    """PREORDEN sin la raíz: la lista plana de los 13 encargos que usa el juego.
+
+    Como el preorden visita al padre antes que a sus hijas, completar en este
+    orden siempre respeta las dependencias. O(n).
+    """
+    return [mision for nivel, mision in lineas_preorden(raiz)[1:]]
+
+
+def texto_arbol(raiz):
+    """El árbol con sangría (2 espacios por nivel) y una marca por encargo:
+    [x] completada, [ ] disponible, [bloqueada]. Sirve para la consola y la
+    evidencia del README. Usa lineas_preorden. O(n).
+    """
+    renglones = []
+    for nivel, mision in lineas_preorden(raiz):
+        if nivel == 0:
+            renglones.append(mision.titulo)
+            continue
+        if mision.completada:
+            marca = '[x]'
+        elif mision.desbloqueada():
+            marca = '[ ]'
+        else:
+            marca = '[bloqueada]'
+        renglones.append(f"{'  ' * nivel}{marca} {mision.titulo} ({mision.ubicacion})")
+    return '\n'.join(renglones)
+
+
+def por_niveles(raiz):
+    """Recorrido POR NIVELES (BFS con una cola deque).
+
+    Devuelve [[raiz], [biblioteca], [sala_reuniones, r101, cafeteria], ...]:
+    cada lista es una etapa de la noche, así el juego puede mostrar en qué
+    etapa va el jugador y qué hay disponible en cada una. O(n).
+    """
+    if not isinstance(raiz, Mision):
+        return []
+    niveles = []
+    cola = deque([(raiz, 0)])
+    vistas = {id(raiz)}
+    while cola:
+        mision, nivel = cola.popleft()
+        if nivel == len(niveles):
+            niveles.append([])
+        niveles[nivel].append(mision)
+        for hija in mision.hijas:
+            if isinstance(hija, Mision) and id(hija) not in vistas:
+                vistas.add(id(hija))
+                cola.append((hija, nivel + 1))
+    return niveles
+
+
+def recompensa_rama(mision, solo_completadas=True):
+    """POSTORDEN: suma las recompensas de la rama que cuelga de `mision`.
+
+    Primero suma las hijas y al final el propio nodo. Con solo_completadas
+    (por defecto) cuenta solo lo ya hecho: es el puntaje final si se llama
+    con la raíz. Con solo_completadas=False dice cuánto vale la rama entera.
+    Devuelve 0 si `mision` no es válida. O(n).
+    """
+    if not isinstance(mision, Mision):
+        return 0
+    vistas = set()
+
+    def sumar(actual):
+        if not isinstance(actual, Mision) or id(actual) in vistas:
+            return 0
+        vistas.add(id(actual))
+        total = 0
+        for hija in actual.hijas:           # primero las hijas...
+            total += sumar(hija)
+        if actual.completada or not solo_completadas:
+            total += actual.recompensa      # ...y después el nodo
+        return total
+
+    return sumar(mision)

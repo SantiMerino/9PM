@@ -77,6 +77,7 @@ class Sonido:
         self.disponible = False
         self.silencio = not activo
         self.canales = 1
+        self.frecuencia = FRECUENCIA
         self.sonidos = {}
         self.musica_actual = None
         self._canal_musica = None
@@ -88,6 +89,7 @@ class Sonido:
                 pygame.mixer.init(FRECUENCIA, -16, 1, 512)
             frecuencia, _, canales = pygame.mixer.get_init()
             self.canales = canales
+            self.frecuencia = frecuencia     # pygame.init() puede haberlo abierto a 44100 Hz
             self.disponible = frecuencia > 0
         except (pygame.error, TypeError):
             self.disponible = False
@@ -98,8 +100,13 @@ class Sonido:
     # Generación (en un hilo para no congelar el arranque)
     # ------------------------------------------------------------------
     def _sonido(self, muestras):
+        """Convierte las muestras (sintetizadas a FRECUENCIA) a la frecuencia y los
+        canales reales del mezclador; si no, todo sonaría más rápido y más agudo."""
         datos = array("h")
-        for m in muestras:
+        razon = FRECUENCIA / self.frecuencia
+        total = int(len(muestras) / razon)
+        for i in range(total):
+            m = muestras[min(len(muestras) - 1, int(i * razon))]
             v = int(max(-1.0, min(1.0, m)) * 30000)
             datos.extend([v] * self.canales)
         return pygame.mixer.Sound(buffer=datos.tobytes())
@@ -175,11 +182,11 @@ class Sonido:
 
     def musica(self, nombre):
         """Cambia la música en bucle (None la detiene). No repite si ya suena."""
-        if nombre == self.musica_actual and (self._canal_musica is None or self._canal_musica.get_busy()):
+        sonando = self._canal_musica is not None and self._canal_musica.get_busy()
+        if nombre == self.musica_actual and (nombre is None or self.silencio or sonando):
             return
-        if not self.disponible or nombre not in self.sonidos and nombre is not None:
-            self.musica_actual = nombre
-            return
+        if nombre is not None and (not self.disponible or nombre not in self.sonidos):
+            return      # aún se está generando: se vuelve a pedir en el próximo cuadro
         try:
             if self._canal_musica is not None:
                 self._canal_musica.fadeout(250)

@@ -112,5 +112,52 @@ class TestArbolJuego(unittest.TestCase):
         self.assertFalse(otro.hijas[0].completada)
 
 
+class TestCompletarPorSala(unittest.TestCase):
+    def setUp(self):
+        self.raiz = M.crear_arbol_misiones_juego()
+
+    def test_disponibles_al_inicio_y_despues_de_biblioteca(self):
+        self.assertEqual([m.ubicacion for m in M.disponibles(self.raiz)], ['biblioteca'])
+        ok, nuevas = M.completar_por_sala(self.raiz, 'biblioteca')
+        self.assertTrue(ok)
+        self.assertEqual([m.ubicacion for m in nuevas], ['sala_reuniones', 'r101', 'cafeteria'])
+        self.assertEqual([m.ubicacion for m in M.disponibles(self.raiz)],
+                         ['sala_reuniones', 'r101', 'cafeteria'])
+
+    def test_bloqueada_nombra_a_su_padre(self):
+        # Prueba 3
+        M.completar_por_sala(self.raiz, 'biblioteca')
+        ok, mensaje = M.completar_por_sala(self.raiz, 'lab_siemens')
+        self.assertFalse(ok)
+        self.assertIn('«Entrega digital»', mensaje)
+        self.assertFalse(M.buscar_por_sala(self.raiz, 'lab_siemens').completada)
+
+    def test_repetida(self):
+        # Prueba 5
+        self.assertTrue(M.completar_por_sala(self.raiz, 'biblioteca')[0])
+        ok, mensaje = M.completar_por_sala(self.raiz, 'biblioteca')
+        self.assertFalse(ok)
+        self.assertIsInstance(mensaje, str)
+        self.assertIn('ya estaba completada', mensaje)
+
+    def test_sala_inexistente_y_datos_invalidos(self):
+        # Prueba 6
+        self.assertIsNone(M.buscar_por_sala(self.raiz, 'no_existe'))
+        self.assertIsNone(M.buscar_por_sala(self.raiz, None))
+        self.assertIsNone(M.buscar_por_sala(None, 'biblioteca'))
+        self.assertIsNone(M.buscar_por_sala(self.raiz, 'lobby'))   # la raíz no es encargo
+        for raiz, sala in ((self.raiz, 'no_existe'), (self.raiz, None), (self.raiz, 42),
+                           (None, 'biblioteca'), (self.raiz, 'lobby')):
+            ok, mensaje = M.completar_por_sala(raiz, sala)
+            self.assertFalse(ok)
+            self.assertIsInstance(mensaje, str)
+        self.assertEqual(M.disponibles(None), [])
+
+    def test_buscar_por_sala(self):
+        mision = M.buscar_por_sala(self.raiz, 'r104')
+        self.assertEqual(mision.titulo, 'Bitácora de física')
+        self.assertEqual(mision.padre.ubicacion, 'r105')
+
+
 if __name__ == '__main__':
     unittest.main()

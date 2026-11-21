@@ -181,3 +181,77 @@ def crear_arbol_misiones_juego():
         mision.recompensa = RECOMPENSA_POR_NIVEL * mision.nivel()
         por_sala[sala] = mision
     return raiz
+
+
+def buscar_por_sala(raiz, sala):
+    """Encargo que se hace en `sala`, o None si no existe.
+
+    El juego la usa para saber qué misión corresponde a la estación en la
+    que está el jugador. Recorre en preorden y se detiene al encontrarla.
+    No devuelve la raíz: es un contenedor, no un encargo. O(n).
+    """
+    if not isinstance(raiz, Mision) or sala is None:
+        return None
+    vistas = set()
+
+    def visitar(mision):
+        if id(mision) in vistas:            # protege contra misiones repetidas
+            return None
+        vistas.add(id(mision))
+        if mision is not raiz and mision.ubicacion == sala:
+            return mision
+        for hija in mision.hijas:
+            encontrada = visitar(hija)
+            if encontrada is not None:
+                return encontrada
+        return None
+
+    return visitar(raiz)
+
+
+def disponibles(raiz):
+    """Encargos desbloqueados y sin completar: lo que el jugador puede hacer ya.
+
+    Si un encargo no está completado, todo lo que cuelga de él sigue
+    bloqueado, así que no hace falta bajar por esa rama. O(n) en el peor caso.
+    """
+    if not isinstance(raiz, Mision):
+        return []
+    resultado, vistas = [], set()
+
+    def visitar(mision):
+        if id(mision) in vistas:
+            return
+        vistas.add(id(mision))
+        if mision is not raiz and not mision.completada:
+            if mision.desbloqueada():
+                resultado.append(mision)
+            return                          # sus hijas siguen bloqueadas
+        for hija in mision.hijas:
+            visitar(hija)
+
+    visitar(raiz)
+    return resultado
+
+
+def completar_por_sala(raiz, sala):
+    """Completa el encargo de `sala` si sus dependencias lo permiten.
+
+    Devuelve (True, hijas_que_se_desbloquean) o (False, "mensaje claro") si
+    la sala no existe, si ya estaba completada o si está bloqueada. Es para
+    la lógica y las pruebas: en el juego las estaciones avanzan `paso` y
+    llaman a mision.completar(). O(n) por la búsqueda.
+    """
+    if not isinstance(raiz, Mision):
+        return False, 'No hay un árbol de misiones.'
+    if raiz.es_raiz and sala is not None and sala == raiz.ubicacion:
+        return False, f'«{raiz.titulo}» se completa sola al terminar todos los encargos.'
+    mision = buscar_por_sala(raiz, sala)
+    if mision is None:
+        return False, f'No hay ningún encargo en «{sala}».'
+    if mision.completada:
+        return False, f'«{mision.titulo}» ya estaba completada.'
+    if not mision.desbloqueada():
+        return False, f'Primero completa «{mision.padre.titulo}».'
+    mision.completar()
+    return True, [h for h in mision.hijas if not h.completada]

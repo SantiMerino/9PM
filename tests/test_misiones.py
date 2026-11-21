@@ -159,5 +159,46 @@ class TestCompletarPorSala(unittest.TestCase):
         self.assertEqual(mision.padre.ubicacion, 'r105')
 
 
+class TestPreorden(unittest.TestCase):
+    def setUp(self):
+        self.raiz = M.crear_arbol_misiones_juego()
+
+    def test_lineas_preorden(self):
+        lineas = M.lineas_preorden(self.raiz)
+        self.assertEqual(len(lineas), 14)
+        self.assertEqual(lineas[0], (0, self.raiz))
+        self.assertEqual([(n, m.ubicacion) for n, m in lineas[1:4]],
+                         [(1, 'biblioteca'), (2, 'sala_reuniones'), (3, 'r102')])
+        for nivel, mision in lineas:
+            self.assertEqual(nivel, mision.nivel())
+        self.assertEqual(M.lineas_preorden(None), [])
+
+    def test_todas_las_misiones_respeta_dependencias(self):
+        # Prueba 7
+        lista = M.todas_las_misiones(self.raiz)
+        self.assertEqual(len(lista), 13)
+        self.assertNotIn(self.raiz, lista)
+        for mision in lista:
+            ok, resultado = M.completar_por_sala(self.raiz, mision.ubicacion)
+            self.assertTrue(ok, resultado)
+        self.assertTrue(self.raiz.completada)
+        self.assertEqual(M.disponibles(self.raiz), [])
+
+    def test_texto_arbol_con_sangria(self):
+        # Prueba 10
+        renglones = M.texto_arbol(self.raiz).split('\n')
+        self.assertEqual(len(renglones), 14)
+        self.assertEqual(renglones[0], 'Salir del campus')
+        self.assertEqual(renglones[1], '  [ ] Préstamo de medianoche (biblioteca)')
+        self.assertEqual(renglones[2], '    [bloqueada] Una última firma (sala_reuniones)')
+        for (nivel, _), renglon in zip(M.lineas_preorden(self.raiz), renglones):
+            self.assertEqual(len(renglon) - len(renglon.lstrip(' ')), 2 * nivel)
+        M.completar_por_sala(self.raiz, 'biblioteca')
+        renglones = M.texto_arbol(self.raiz).split('\n')
+        self.assertTrue(renglones[1].strip().startswith('[x]'))
+        self.assertTrue(renglones[2].strip().startswith('[ ]'))
+        self.assertEqual(M.texto_arbol(None), '')
+
+
 if __name__ == '__main__':
     unittest.main()

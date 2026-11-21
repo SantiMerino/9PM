@@ -255,3 +255,57 @@ def completar_por_sala(raiz, sala):
         return False, f'Primero completa «{mision.padre.titulo}».'
     mision.completar()
     return True, [h for h in mision.hijas if not h.completada]
+
+
+# ---------------------------------------------------------------------------
+# Recorridos con propósito
+# ---------------------------------------------------------------------------
+
+def lineas_preorden(raiz):
+    """PREORDEN con nivel: [(0, raiz), (1, biblioteca), (2, sala_reuniones), ...].
+
+    Primero el nodo y después sus hijas de izquierda a derecha. La bitácora
+    lo usa para dibujar el árbol con sangría (más nivel = más sangría).
+    Visita cada misión una sola vez. O(n).
+    """
+    lineas, vistas = [], set()
+
+    def visitar(mision, nivel):
+        if not isinstance(mision, Mision) or id(mision) in vistas:
+            return
+        vistas.add(id(mision))
+        lineas.append((nivel, mision))
+        for hija in mision.hijas:
+            visitar(hija, nivel + 1)
+
+    visitar(raiz, 0)
+    return lineas
+
+
+def todas_las_misiones(raiz):
+    """PREORDEN sin la raíz: la lista plana de los 13 encargos que usa el juego.
+
+    Como el preorden visita al padre antes que a sus hijas, completar en este
+    orden siempre respeta las dependencias. O(n).
+    """
+    return [mision for nivel, mision in lineas_preorden(raiz)[1:]]
+
+
+def texto_arbol(raiz):
+    """El árbol con sangría (2 espacios por nivel) y una marca por encargo:
+    [x] completada, [ ] disponible, [bloqueada]. Sirve para la consola y la
+    evidencia del README. Usa lineas_preorden. O(n).
+    """
+    renglones = []
+    for nivel, mision in lineas_preorden(raiz):
+        if nivel == 0:
+            renglones.append(mision.titulo)
+            continue
+        if mision.completada:
+            marca = '[x]'
+        elif mision.desbloqueada():
+            marca = '[ ]'
+        else:
+            marca = '[bloqueada]'
+        renglones.append(f"{'  ' * nivel}{marca} {mision.titulo} ({mision.ubicacion})")
+    return '\n'.join(renglones)

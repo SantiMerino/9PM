@@ -199,7 +199,6 @@ MOTIVO_CAPTURA = "El vigilante te atrapó después de las 9:00 PM."
 PASILLO = "pasillo"
 POS_PIE_GRADAS = (GRADAS_TRIGGER[0] + GRADAS_TRIGGER[2] // 2, GRADAS_TRIGGER[1] + GRADAS_TRIGGER[3] + 14)
 MINUTOS_POR_RONDA_TORRE = 1      # cada ronda de turnos gasta un minuto del reloj
-MINUTOS_SERMON = 3               # lo que cuesta que el vigilante te encuentre antes de las 21:00
 TURNOS_ALERTA_ROBOT = 2          # turnos que el vigilante te persigue tras el aviso del robot
 TURNOS_REPORTE = 3               # turnos que el vigilante se queda escribiendo tras sermonearte
 PUNTOS_POR_TESORO = 150
@@ -728,6 +727,17 @@ class Partida:
         if self.encargos_completos():
             self.logros.otorgar("todos_encargos")
 
+    def _revocar_logros_encargo(self, mision):
+        """Al deshacer un encargo se quitan los logros que ya no se cumplen (y sus puntos)."""
+        self.logros.revocar(f"encargo:{mision.ubicacion}")
+        if self.encargos_hechos() == 0:
+            self.logros.revocar("primer_encargo")
+        if not self.encargos_completos():
+            self.logros.revocar("todos_encargos")
+        for rama in self.mision.hijas:
+            if not rama.todas_completas():
+                self.logros.revocar(f"rama:{rama.ubicacion}")
+
     # ------------------------------------------------------------------
     # Batalla de argumentos (Torre)
     # ------------------------------------------------------------------
@@ -798,16 +808,19 @@ class Partida:
             self.pausa_vigilante = TURNOS_REPORTE
         elif b.resultado == "huiste":
             self.logros.otorgar("escapista")
-            opciones = sorted(self.grafo_torre.vecinos(self.sala_torre) - {self.posiciones_torre[VIGILANTE]})
+            antes = self.sala_torre
+            opciones = sorted(self.grafo_torre.vecinos(antes) - {self.posiciones_torre[VIGILANTE]})
             if opciones:
                 self.sala_torre = self.azar.choice(opciones)
                 self.salas_visitadas.add(self.sala_torre)
+                self._registrar("mover", f"{antes} → {self.sala_torre} (huyendo)",
+                                desde=antes, hacia=self.sala_torre)
             self._log(f"  Escapas hacia {self.sala_torre}. El vigilante te sigue el rastro.")
             self.alerta_vigilante = max(self.alerta_vigilante, 3)
             self.pausa_vigilante = 1
         else:
             self.sonido.efecto("derrota")
-            if b.toque_queda:
+            if b.toque_queda or self.estado_mundo["toque_queda_activo"]:
                 self._terminar(False, "Perdiste la discusión con el vigilante después del toque de queda.")
                 return
             minutos = self.dificultad["minutos_sermon"]
@@ -991,6 +1004,7 @@ class Partida:
             mision.completada = False
             # Deshacer revierte los efectos en el mundo; la hora y el toque de queda no.
             revertir_cambios(self.estado_mundo, accion.get("cambios", []))
+            self._revocar_logros_encargo(mision)
             accion["estacion"]["usado"] = False
             self.inventario.agregar(crear_objeto(accion["objeto"]))
             self._agregar_toast(f"Deshaces: recuperas {crear_objeto(accion['objeto'])['titulo']}; "
@@ -1302,8 +1316,9 @@ class Partida:
         if (self.posiciones_torre[VIGILANTE] == aqui and VIGILANTE not in self._encuentros_ronda
                 and self.batalla is None):
             self._encuentros_ronda.add(VIGILANTE)
-            if self.estado_mundo["toque_queda_activo"] or self.pausa_vigilante == 0:
+            if self.pausa_vigilante == 0:
                 # Ya no te saca de una: te toca convencerlo (batalla de argumentos).
+                # Si acaba de perder una discusión (pausa > 0) está escribiendo su reporte.
                 self.iniciar_batalla()
 
     def recoger_en_torre(self):
@@ -2127,7 +2142,9 @@ def dibujar_fin(pantalla, fuentes, partida):
 def manejar_entrada_batalla(partida, ev):
     """Batalla de argumentos: flechas/WASD eligen, ENTER/ESPACIO confirman, 1-5 directo."""
     if ev.type == pygame.KEYDOWN:
-        if ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+        if ev.key == pygame.K_ESCAPE:
+            partida.panel_activo = "pausa"
+        elif ev.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
             partida.batalla_confirmar()
         elif ev.key in (pygame.K_LEFT, pygame.K_a):
             partida.batalla_mover(-1, 0)
@@ -2140,9 +2157,10 @@ def manejar_entrada_batalla(partida, ev):
         elif pygame.K_1 <= ev.key <= pygame.K_5:
             partida.batalla_elegir(ev.key - pygame.K_1)
     elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-        indice = opcion_en(ev.pos) if partida.batalla.fase == "elegir" else None
-        if indice is not None:
-            partida.batalla_elegir(indice)
+        if partida.batalla.fase == "elegir":
+            indice = opcion_en(ev.pos)
+            if indice is not None:        # un clic fuera de las opciones no gasta la excusa
+                partida.batalla_elegir(indice)
         else:
             partida.batalla_confirmar()
     elif ev.type == pygame.MOUSEMOTION and partida.batalla.fase == "elegir":

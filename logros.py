@@ -58,6 +58,13 @@ class RegistroLogros:
                             texto=f"Encargo completado · +{mision.recompensa} pts de recompensa",
                             puntos=0, icono="encargo")
 
+    def revocar(self, clave):
+        """Quita un logro (por ejemplo, al deshacer el encargo que lo dio). O(n) por la cola."""
+        if self.obtenidos.pop(clave, None) is None:
+            return False
+        self.cola = [l for l in self.cola if l.get("clave") != clave]
+        return True
+
     def tiene(self, clave):
         return clave in self.obtenidos
 

@@ -241,5 +241,113 @@ class PartidaConMejorasTests(unittest.TestCase):
         dibujar_logro(s, p.logros.mostrando, 1.0)
 
 
+class CorreccionesReviewTests(unittest.TestCase):
+    """Casos de la review del PR #5."""
+
+    def setUp(self):
+        self.p = Partida(crear_mapa_universidad(), {}, semilla=3)
+        self.p._aplicar_entrar_torre()
+
+    def test_tras_ganar_despues_del_toque_no_vuelve_a_pelear(self):
+        p = self.p
+        p.estado_mundo['toque_queda_activo'] = True
+        p.iniciar_batalla()
+        p.batalla.resultado, p.batalla.fase = 'ganaste', 'fin'
+        p.terminar_batalla()
+        p._encuentros_ronda = set()
+        p.posiciones_torre[VIGILANTE] = p.sala_torre
+        p._revisar_encuentros()
+        self.assertIsNone(p.batalla)
+        self.assertFalse(p.terminado)
+
+    def test_huir_queda_en_el_historial_y_se_deshace(self):
+        p = self.p
+        antes = p.sala_torre
+        p.iniciar_batalla()
+        p.batalla.resultado, p.batalla.fase = 'huiste', 'fin'
+        p.terminar_batalla()
+        self.assertEqual(p.historial[-1]['tipo'], 'mover')
+        self.assertEqual(p.historial[-1]['hacia'], p.sala_torre)
+        p.pausa_vigilante = 99
+        self.assertTrue(p.deshacer_accion())
+        self.assertEqual(p.sala_torre, antes)
+
+    def test_perder_si_el_toque_empezo_durante_la_batalla(self):
+        p = self.p
+        p.iniciar_batalla()                       # empieza antes de las 21:00
+        p.estado_mundo['toque_queda_activo'] = True
+        p.batalla.resultado, p.batalla.fase = 'perdiste', 'fin'
+        p.terminar_batalla()
+        self.assertTrue(p.terminado)
+
+    def test_clic_fuera_de_las_opciones_no_gasta_excusa(self):
+        from main import manejar_entrada_batalla
+        p = self.p
+        b = p.iniciar_batalla()
+        hasta_elegir(b)
+        turno = b.turno
+        manejar_entrada_batalla(p, pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(100, 100)))
+        self.assertEqual(b.turno, turno)
+        self.assertEqual(b.fase, 'elegir')
+
+    def test_esc_pausa_la_batalla(self):
+        from main import manejar_entrada_batalla
+        p = self.p
+        p.iniciar_batalla()
+        manejar_entrada_batalla(p, pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE, unicode=''))
+        self.assertEqual(p.panel_activo, 'pausa')
+        self.assertIsNotNone(p.batalla)
+
+    def test_deshacer_quita_logros_del_encargo(self):
+        from logros import RegistroLogros
+        p = Partida(crear_mapa_universidad(), {}, semilla=3)
+        m = p.encargo_en('biblioteca')
+        m.paso = len(m.pasos)
+        p._completar_encargo(m)
+        self.assertGreater(len(p.logros.obtenidos), 0)
+        m.completada = False
+        p._revocar_logros_encargo(m)
+        self.assertFalse(p.logros.tiene('encargo:biblioteca'))
+        self.assertFalse(p.logros.tiene('primer_encargo'))
+        self.assertEqual(p.logros.puntos(), 0)
+        r = RegistroLogros()
+        self.assertFalse(r.revocar('no_existe'))
+
+
+class SonidoTests(unittest.TestCase):
+    def _sonido(self, **attrs):
+        from sonido import Sonido
+        s = Sonido.__new__(Sonido)
+        s.disponible, s.silencio, s.canales, s.frecuencia = True, False, 1, 22050
+        s.sonidos, s.musica_actual, s._canal_musica = {}, None, None
+        for k, v in attrs.items():
+            setattr(s, k, v)
+        return s
+
+    def test_se_adapta_a_la_frecuencia_del_mezclador(self):
+        from unittest.mock import patch
+        s = self._sonido(frecuencia=44100, canales=2)
+        with patch('sonido.pygame.mixer.Sound', side_effect=lambda buffer: buffer):
+            datos = s._sonido([0.5] * 1000)
+        self.assertEqual(len(datos), 2000 * 2 * 2)     # 2000 muestras x 2 canales x 2 bytes
+
+    def test_la_musica_espera_a_que_termine_de_generarse(self):
+        class Canal:
+            def get_busy(self): return True
+            def set_volume(self, v): pass
+            def fadeout(self, ms): pass
+
+        class Pista:
+            def play(self, loops=0, fade_ms=0): return Canal()
+
+        s = self._sonido()
+        s.musica('campus')
+        self.assertIsNone(s.musica_actual)          # todavía no está lista
+        s.sonidos['campus'] = Pista()
+        s.musica('campus')
+        self.assertEqual(s.musica_actual, 'campus')
+        self.assertIsNotNone(s._canal_musica)
+
+
 if __name__ == '__main__':
     unittest.main()
